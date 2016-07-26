@@ -1,0 +1,26 @@
+name: MazePlugin
+main: org.dogeop.MazePlugin.MazePlugin
+version: 1.0
+commands:
+   StartMazeTour:
+      description: Go To Maze.
+      usage: /StartMazeTour
+      permission:
+      permission-message: You don't have <permission>
+
+   Abort:
+         description: Abort the Maze.
+         usage: /Abort
+         permission:
+         permission-message: You don't have <permission>\
+
+   Finish:
+         description: Finish the Maze Tour.
+         usage: /Finish
+         permission:
+         permission-message: You don't have <permission>
+   GenMaze:
+         description: Generate Maze.
+         usage: /GenMaze
+         permission:
+         permission-message: You don't have <permission>
