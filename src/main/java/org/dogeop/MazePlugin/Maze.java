@@ -1,5 +1,9 @@
 package org.dogeop.MazePlugin;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.*;
 import java.util.ArrayList;
 import java.util.EmptyStackException;
 import java.util.Random;
@@ -16,46 +20,42 @@ class MazeNode {
         this.Y = Y;
     }
 }
-public class Maze
-{
+public class Maze {
     Random random;
     MazeNode maze[][];
     ArrayList<MazeNode> unvisited = new ArrayList<MazeNode>();
     int width;
-    public Maze(int width)
-    {
+
+    public Maze(int width) {
         maze = new MazeNode[2 * width + 1][2 * width + 1];
         this.width = width;
     }
-    public void init()
-    {
+
+    public void init() {
         random = new Random();
-        for(int i = 0; i < 2 * width + 1; i++)
-        {
-            for(int j = 0; j < 2 * width + 1; j++) {
+        for (int i = 0; i < 2 * width + 1; i++) {
+            for (int j = 0; j < 2 * width + 1; j++) {
                 if (i % 2 != 0 && j % 2 != 0) {
-                    setNode(i,j,false);
+                    setNode(i, j, false);
                     unvisited.add(maze[i][j]);
                 } else {
-                    setNode(i,j,true);
+                    setNode(i, j, true);
                 }
 
             }
         }
     }
-    public void removeWall(MazeNode A, MazeNode B)
-    {
+
+    public void removeWall(MazeNode A, MazeNode B) {
         int wallX = (A.X + B.X) / 2;
         int wallY = (A.Y + B.Y) / 2;
         maze[wallX][wallY].isWall = false;
     }
-    public int checkdir(int x, int y)
-    {
-        if(maze[x][y].isWall)
-        {
+
+    public int checkdir(int x, int y) {
+        if (maze[x][y].isWall) {
             throw new IllegalArgumentException("cannot do this on a wall");
-        }
-        else {
+        } else {
             if (x > 0 && x < maze.length - 1 && y > 0 && y < maze.length - 1) {
                 if (!maze[x - 1][y].isWall && !maze[x + 1][y].isWall) {
                     //x dir
@@ -70,8 +70,7 @@ public class Maze
                 if (!maze[x + 1][y].isWall) {
                     //x dir
                     return 0;
-                }
-                else {
+                } else {
                     return -1;
                 }
 
@@ -79,113 +78,98 @@ public class Maze
                 if (!maze[x][y + 1].isWall) {
                     //x dir
                     return 1;
-                }else {
+                } else {
                     return -1;
                 }
             } else if (x == maze.length - 1) {
                 if (!maze[x - 1][y].isWall) {
                     //x dir
                     return 0;
-                }else {
+                } else {
                     return -1;
                 }
-            } else if (y == maze.length - 1)
-            {
+            } else if (y == maze.length - 1) {
                 if (!maze[x][y - 1].isWall) {
                     //x dir
                     return 1;
-                }else {
+                } else {
                     return -1;
                 }
             }
             return 0;
         }
     }
+
     public ArrayList<MazeNode> getAdjunvisitedNode(int x, int y) {
         ArrayList<MazeNode> adjnodes = new ArrayList<MazeNode>();
         if (maze[x][y].isWall) {
             throw new IllegalArgumentException("Cannot set in the wall");
         }
-        if (x + 2 > 0 && x + 2 < 2 * width + 1 && !maze[x + 2][y].visited)
-        {
+        if (x + 2 > 0 && x + 2 < 2 * width + 1 && !maze[x + 2][y].visited) {
             adjnodes.add(maze[x + 2][y]);
         }
-        if(y + 2 > 0 && y + 2 < 2 * width + 1 && !maze[x][y + 2].visited)
-        {
+        if (y + 2 > 0 && y + 2 < 2 * width + 1 && !maze[x][y + 2].visited) {
             adjnodes.add(maze[x][y + 2]);
         }
-        if(x - 2 > 0 && x - 2 < 2 * width + 1 && !maze[x - 2][y].visited)
-        {
+        if (x - 2 > 0 && x - 2 < 2 * width + 1 && !maze[x - 2][y].visited) {
             adjnodes.add(maze[x - 2][y]);
         }
-        if(y - 2 > 0 && y - 2 < 2 * width + 1 && !maze[x][y - 2].visited)
-        {
+        if (y - 2 > 0 && y - 2 < 2 * width + 1 && !maze[x][y - 2].visited) {
             adjnodes.add(maze[x][y - 2]);
         }
         return adjnodes;
     }
-    public ArrayList<MazeNode> getAdjunvisitedNode_generateterrain(int x, int y) throws IllegalArgumentException
-    {
+
+    public ArrayList<MazeNode> getAdjunvisitedNode_generateterrain(int x, int y) throws IllegalArgumentException {
         ArrayList<MazeNode> adjnodes = new ArrayList<MazeNode>();
         if (maze[x][y].isWall) {
             throw new IllegalArgumentException("Cannot set in the wall");
         }
-        if (x + 1 > 0 && x + 1 < 2 * width + 1 && !maze[x + 1][y].visited && !maze[x + 1][y].isWall)
-        {
+        if (x + 1 > 0 && x + 1 < 2 * width + 1 && !maze[x + 1][y].visited && !maze[x + 1][y].isWall) {
             adjnodes.add(maze[x + 2][y]);
         }
-        if(y + 1 > 0 && y + 1 < 2 * width + 1 && !maze[x][y + 1].visited && !maze[x][y + 1].isWall)
-        {
+        if (y + 1 > 0 && y + 1 < 2 * width + 1 && !maze[x][y + 1].visited && !maze[x][y + 1].isWall) {
             adjnodes.add(maze[x][y + 2]);
         }
-        if(x - 1 > 0 && x - 1 < 2 * width + 1 && !maze[x - 1][y].visited && !maze[x - 1][y].isWall)
-        {
+        if (x - 1 > 0 && x - 1 < 2 * width + 1 && !maze[x - 1][y].visited && !maze[x - 1][y].isWall) {
             adjnodes.add(maze[x - 2][y]);
         }
-        if(y - 1 > 0 && y - 1 < 2 * width + 1 && !maze[x][y - 1].visited && !maze[x][y - 1].isWall)
-        {
+        if (y - 1 > 0 && y - 1 < 2 * width + 1 && !maze[x][y - 1].visited && !maze[x][y - 1].isWall) {
             adjnodes.add(maze[x][y - 1]);
         }
         return adjnodes;
     }
-    public void generate(int startx, int starty)
-    {
-        if(maze[startx][starty].isWall)
-        {
+
+    public void generate(int startx, int starty) {
+        if (maze[startx][starty].isWall) {
             throw new IllegalArgumentException("Cannot set startpoint in a wall");
         }
         Stack<MazeNode> NodeStack = new Stack<MazeNode>();
         MazeNode current = maze[startx][starty];
         current.visited = true;
         unvisited.remove(current);
-        while(!unvisited.isEmpty()) {
+        while (!unvisited.isEmpty()) {
             unvisited.trimToSize();
             ArrayList<MazeNode> adjs = getAdjunvisitedNode(current.X, current.Y);
-            if (adjs.size() > 0)
-            {
+            if (adjs.size() > 0) {
                 //System.out.println("Visiting new");
                 int idx = 0;
-                if(adjs.size() > 1)
-                {
+                if (adjs.size() > 1) {
                     idx = random.nextInt(adjs.size());
                 }
                 MazeNode adj = adjs.get(idx);
                 NodeStack.push(current);
-                removeWall(adj,current);
+                removeWall(adj, current);
                 adj.visited = true;
                 unvisited.remove(adj);
                 current = adj;
-            }
-            else {
-                try
-                {
+            } else {
+                try {
                     //System.out.println("Found no way , popping");
                     MazeNode pop = NodeStack.pop();
                     current = pop;
-                }
-                catch(EmptyStackException e)
-                {
-                   // System.out.println("Choosing a new start");
+                } catch (EmptyStackException e) {
+                    // System.out.println("Choosing a new start");
                     int idx = random.nextInt(unvisited.size());
                     current = unvisited.get(idx);
                     current.visited = true;
@@ -196,9 +180,74 @@ public class Maze
         }
 
     }
-    public void setNode(int i, int j, boolean isWall)
+
+    public void setNode(int i, int j, boolean isWall) {
+        maze[i][j] = new MazeNode(isWall, i, j);
+    }
+
+    public JSONObject JSONSerialize()
     {
-        maze[i][j] = new MazeNode(isWall,i,j);
+        JSONObject o = new JSONObject();
+        o.put("width",width);
+        JSONArray jarr = new JSONArray();
+        for(int i = 0; i < width * 2 + 1; i++)
+        {
+            JSONArray _jarr = new JSONArray();
+            for(int j = 0; j < width * 2 + 1; j++)
+            {
+                JSONObject _o = new JSONObject();
+                _o.put("X",maze[i][j].X);
+                _o.put("Y",maze[i][j].Y);
+                _o.put("isWall",maze[i][j].isWall);
+                _jarr.put(_o);
+            }
+            jarr.put(_jarr);
+        }
+        o.put("Nodes",jarr);
+        return o;
+    }
+    public static Maze JSONDeSerialize(File f)
+    {
+        BufferedReader reader = null;
+        try {
+            reader = new BufferedReader(new InputStreamReader(new FileInputStream(f)));
+            String s = "";
+            String read = null;
+            do {
+                read = reader.readLine();
+                s += read;
+            } while (read != null);
+            JSONObject jo = new JSONObject(s);
+            int width = jo.getInt("width");
+            Maze m = new Maze(width);
+            m.init();
+            for (int i = 0; i < width * 2 + 1; i++)
+            {
+                JSONArray ja = jo.getJSONArray("Nodes").getJSONArray(i);
+                for(int j = 0; j < width * 2 + 1; j++)
+                {
+                    JSONObject o = (JSONObject) ja.get(i);
+                    m.setNode(o.getInt("X"),o.getInt("Y"),o.getBoolean("isWall"));
+                }
+            }
+            return m;
+        } catch (FileNotFoundException e) {
+            //e.printStackTrace();
+            return null;
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+        finally {
+            if(reader != null)
+            {
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
     public void printAsString()
     {
