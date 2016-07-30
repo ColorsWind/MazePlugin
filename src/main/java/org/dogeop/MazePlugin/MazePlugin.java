@@ -14,6 +14,7 @@ import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
@@ -26,6 +27,8 @@ import java.text.NumberFormat;
 import java.util.*;
 import java.util.logging.Logger;
 import java.util.concurrent.Callable;
+import java.util.regex.Pattern;
+
 public final class MazePlugin extends JavaPlugin
 {
     ArrayList<Material> BonusItems = new ArrayList<Material>();
@@ -63,9 +66,10 @@ public final class MazePlugin extends JavaPlugin
     Material Maze_Material_Wall = Material.BEDROCK;
     Material Maze_Material_ROOF_A = Material.OBSIDIAN;
     Material Maze_Material_ROOF_B = Material.GLASS;
-    Material Maze_Material_Light = Material.SEA_LANTERN;
+    Material Maze_Material_Light = Material.PUMPKIN;
     String MazeSerialize_File = "Maze.json";
     String world = "world";
+    String CommmandPattern = "";
     NumberFormat format = NumberFormat.getInstance();
     Random random = new Random();
     Maze maze = null;
@@ -158,6 +162,18 @@ public final class MazePlugin extends JavaPlugin
             if(checkIfInMaze(p.getLocation()))
             {
                 OffLineMazePlayers.put(p.getUniqueId().toString(),false);
+            }
+        }
+        @EventHandler
+        public void onInterceptCommand(PlayerCommandPreprocessEvent event)
+        {
+            if(event.getMessage().matches(CommmandPattern))
+            {
+                if(!event.getPlayer().isOp())
+                {
+                    if(!checkIfInMaze(event.getPlayer().getLocation()))
+                        event.setMessage("/");
+                }
             }
         }
     }
@@ -1005,6 +1021,7 @@ public final class MazePlugin extends JavaPlugin
     }
     @Override
     public void onEnable() {
+        System.out.println(getServer().getBukkitVersion());
         BufferedReader br = null;
         try {
             this.saveDefaultConfig();
@@ -1014,6 +1031,7 @@ public final class MazePlugin extends JavaPlugin
             saveResource("takaramono_rare.txt", false);
             saveResource("spawner_egg_entities.txt", false);
             saveResource("takaramono.txt", false);
+            saveResource("banned_commands.txt",false);
             String line = null;
             br = new BufferedReader(new InputStreamReader(new FileInputStream(new File(DataFolder + File.separator + "enchantments.txt"))));
             do{
@@ -1078,6 +1096,19 @@ public final class MazePlugin extends JavaPlugin
                     ex.printStackTrace();
                 }
             }while (line != null);
+            String regex = "/(";
+            br = new BufferedReader(new InputStreamReader(new FileInputStream(new File(DataFolder + File.separator + "banned_commands.txt"))));
+            do{
+                line = br.readLine();
+                if(line != null) {
+                    //System.out.println(e.toString());
+                    regex += (line + "|");
+                }
+            }while (line != null);
+            regex = regex.substring(0,regex.length() - 1) + ")";
+            System.out.println(regex);
+            CommmandPattern = regex;
+            br.close();
             FileConfiguration config = getConfig();
             chance_takaramono_rare = config.getDouble("Chance_Takaramono_rare");
             chance_takaramono = config.getDouble("Chance_Chest");

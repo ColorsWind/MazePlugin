@@ -6,7 +6,7 @@
 
     <groupId>org.dogeop</groupId>
     <artifactId>MazePlugin</artifactId>
-    <version>1.2-SNAPSHOT-Spigot-1.9.4-R0.1</version>
+    <version>1.2-SNAPSHOT-Spigot-1.6.4--1.10.2-R0.1</version>
 
     <build>
         <plugins>
@@ -46,17 +46,17 @@
     </repositories>
     <dependencies>
         <!--Spigot API-->
-         <dependency>
+         <!-- <dependency>
              <groupId>org.spigotmc</groupId>
              <artifactId>spigot-api</artifactId>
              <version>1.9.4-R0.1-SNAPSHOT</version>
              <scope>provided</scope>
-         </dependency>
+         </dependency> -->
          <!--Bukkit API-->
         <dependency>
             <groupId>org.bukkit</groupId>
             <artifactId>bukkit</artifactId>
-            <version>1.9.4-R0.1-SNAPSHOT</version>
+            <version>1.7.2-R0.1</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
