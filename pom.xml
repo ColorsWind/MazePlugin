@@ -6,7 +6,7 @@
 
     <groupId>org.dogeop</groupId>
     <artifactId>MazePlugin</artifactId>
-    <version>1.1-SNAPSHOT-Spigot-1.9.4-R0.1</version>
+    <version>1.2-SNAPSHOT-Spigot-1.9.4-R0.1</version>
 
     <build>
         <plugins>
@@ -63,6 +63,11 @@
             <groupId>org.json</groupId>
             <artifactId>json</artifactId>
             <version>20160212</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.7</version>
         </dependency>
 
     </dependencies>

@@ -1,6 +1,6 @@
 name: MazePlugin
 main: org.dogeop.MazePlugin.MazePlugin
-version: 1.0
+version: 1.2
 commands:
    StartMazeTour:
       description: Go To Maze.
@@ -12,7 +12,7 @@ commands:
          description: Abort the Maze.
          usage: /Abort
          permission:
-         permission-message: You don't have <permission>\
+         permission-message: You don't have <permission>
 
    Finish:
          description: Finish the Maze Tour.
@@ -24,3 +24,14 @@ commands:
          usage: /GenMaze
          permission:
          permission-message: You don't have <permission>
+   SetSize:
+         description: Set Size of Maze.
+         usage: /GenMaze <positive number>
+         permission:
+         permission-message: You don't have <permission>
+   SetRebuildOnFinish:
+         description: Set if rebuild maze on execute of /Finish
+         usage: /SetRebuildOnFinish <true|false>
+         permission:
+         permission-message: You don't have <permission>
+

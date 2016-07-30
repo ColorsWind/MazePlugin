@@ -215,7 +215,10 @@ public class Maze {
             String read = null;
             do {
                 read = reader.readLine();
-                s += read;
+                if (read != null) {
+                    s += read;
+
+                }
             } while (read != null);
             JSONObject jo = new JSONObject(s);
             int width = jo.getInt("width");
@@ -232,7 +235,7 @@ public class Maze {
             }
             return m;
         } catch (FileNotFoundException e) {
-            //e.printStackTrace();
+            e.printStackTrace();
             return null;
         } catch (IOException e) {
             e.printStackTrace();
