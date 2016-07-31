@@ -63,7 +63,7 @@ public final class MazePlugin extends JavaPlugin
     Material Maze_Material_Wall = Material.BEDROCK;
     Material Maze_Material_ROOF_A = Material.OBSIDIAN;
     Material Maze_Material_ROOF_B = Material.GLASS;
-    Material Maze_Material_Light = Material.SEA_LANTERN;
+    Material Maze_Material_Light = Material.PUMPKIN;
     String MazeSerialize_File = "Maze.json";
     String world = "world";
     NumberFormat format = NumberFormat.getInstance();
@@ -283,7 +283,7 @@ public final class MazePlugin extends JavaPlugin
                 Location locvoid = new Location(getServer().getWorld(world),0,-64,0);
                 for(Entity e : getServer().getWorld(world).getEntities()) {
                     if(checkIfInMaze(e.getLocation())) {
-                        if(e instanceof Monster || e instanceof Rabbit || e instanceof Ghast)
+                        if(e instanceof Monster || e instanceof Ghast)
                         {
                             //System.out.println("Clearing " + e.toString() + " " + e.getLocation().getBlockX() + " " + e.getLocation().getBlockY() + " " + e.getLocation().getBlockZ());
                             e.remove();
@@ -685,7 +685,7 @@ public final class MazePlugin extends JavaPlugin
                                 zombie.getEquipment().setLeggings(legging);
                                 zombie.getEquipment().setBoots(boots);
                             }
-                            zombie.getEquipment().setItemInMainHand(sword);
+                            zombie.getEquipment().setItemInHand(sword);
                             roll = random.nextFloat();
 
                         }break;
@@ -698,15 +698,50 @@ public final class MazePlugin extends JavaPlugin
                             Skeleton s = (Skeleton) getServer().getWorld(world).spawnEntity(new Location(getServer().getWorld(world),idx, spawnY, idz),EntityType.SKELETON);
                             entity = s;
                             s.setSkeletonType(Skeleton.SkeletonType.WITHER);
-                            s.getEquipment().setItemInMainHand(new ItemStack(Material.IRON_SWORD));
+                            s.getEquipment().setItemInHand(new ItemStack(Material.IRON_SWORD));
                         }break;
                         case chance_monster_killerbunny:
                         {
-                            Rabbit rabbit = (Rabbit) getServer().getWorld(world).spawnEntity(new Location(getServer().getWorld(world),idx, spawnY, idz),EntityType.RABBIT);
-                            rabbit.setRabbitType(Rabbit.Type.THE_KILLER_BUNNY);
-                            rabbit.setMaxHealth(20);
-                            rabbit.setHealth(20);
-                            entity = rabbit;
+                            //Rabbit rabbit = (Rabbit) getServer().getWorld(world).spawnEntity(new Location(getServer().getWorld(world),idx, spawnY, idz),EntityType.RABBIT);
+                            //rabbit.setRabbitType(Rabbit.Type.THE_KILLER_BUNNY);
+                            //rabbit.setMaxHealth(20);
+                            //rabbit.setHealth(20);
+                            //entity = rabbit;
+                            Zombie zombie = (Zombie) getServer().getWorld(world).spawnEntity(new Location(getServer().getWorld(world),idx, spawnY, idz),EntityType.ZOMBIE);
+                            entity = zombie;
+                            ItemStack sword = new ItemStack(Material.GOLD_SWORD);
+                            if(random.nextFloat() < 0.3)
+                            {
+                                sword.setType(Material.DIAMOND_SWORD);
+                                sword.addEnchantment(Enchantment.DAMAGE_ALL,4);
+                                sword.addEnchantment(Enchantment.FIRE_ASPECT,2);
+                                sword.addEnchantment(Enchantment.DURABILITY,3);
+                            }
+                            if(random.nextFloat() < 0.5)
+                            {
+                                zombie.setBaby(true);
+                            }
+                            if(random.nextFloat() < 0.02) {
+                                ItemStack helmet = new ItemStack(Material.DIAMOND_HELMET);
+                                ItemStack chestplate = new ItemStack(Material.DIAMOND_CHESTPLATE);
+                                ItemStack legging = new ItemStack(Material.DIAMOND_LEGGINGS);
+                                ItemStack boots = new ItemStack(Material.DIAMOND_BOOTS);
+                                helmet.addEnchantment(Enchantment.PROTECTION_ENVIRONMENTAL,4);
+                                helmet.addEnchantment(Enchantment.DURABILITY,3);
+                                chestplate.addEnchantment(Enchantment.PROTECTION_ENVIRONMENTAL,4);
+                                chestplate.addEnchantment(Enchantment.DURABILITY,3);
+                                legging.addEnchantment(Enchantment.PROTECTION_ENVIRONMENTAL,4);
+                                legging.addEnchantment(Enchantment.DURABILITY,3);
+                                boots.addEnchantment(Enchantment.PROTECTION_ENVIRONMENTAL,4);
+                                boots.addEnchantment(Enchantment.DURABILITY,3);
+                                zombie.getEquipment().setHelmet(helmet);
+                                zombie.getEquipment().setChestplate(chestplate);
+                                zombie.getEquipment().setLeggings(legging);
+                                zombie.getEquipment().setBoots(boots);
+                            }
+                            zombie.getEquipment().setItemInHand(sword);
+                            roll = random.nextFloat();
+
                         }break;
                         case chance_monster_powercreeper:
                         {
@@ -735,7 +770,7 @@ public final class MazePlugin extends JavaPlugin
                         }break;
                         default:entity=null;
                     }
-                    entity.setCustomName("Maze Monster");
+                    //entity.setCustomName("Maze Monster");
                 }
 
             }
@@ -842,7 +877,7 @@ public final class MazePlugin extends JavaPlugin
                     }
                 }
                // System.out.println("" + count + " " + itemStack.size());
-                if(itemStack.size() + count > 41)
+                if(itemStack.size() + count > 40)
                 {
                     p.sendMessage("对不起迷宫最多帮你存41个东西，清理下物品栏再试");
                     return false;
@@ -869,15 +904,6 @@ public final class MazePlugin extends JavaPlugin
                     if(i != null) {
                         if(i.getType() != Material.AIR) {
                             itemStack.add(i.serialize());
-                        }
-                    }
-                }
-                ItemStack iteminoffhand = p.getEquipment().getItemInOffHand();
-                if(iteminoffhand != null) {
-                    if(iteminoffhand.getType() != Material.AIR)
-                    {
-                        {
-                            itemStack.add(iteminoffhand.serialize());
                         }
                     }
                 }
