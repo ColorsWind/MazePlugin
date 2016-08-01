@@ -296,7 +296,7 @@ public final class MazePlugin extends JavaPlugin
                             if(roll < 0.2)
                             {
                                 roll = random.nextFloat();
-                                if(roll < 0.7) {
+                                if(roll < 0.85) {
                                     getServer().getWorld(world).spawnEntity(new Location(getServer().getWorld(world), X + 3, OriginY + 12, Z + 3), EntityType.GHAST);
                                 }
                                 else
@@ -1210,7 +1210,7 @@ public final class MazePlugin extends JavaPlugin
                 Player e = (Player)sender;
                 if(e.getLocation().getX() > boundstart && e.getLocation().getY() < boundend && e.getLocation().getZ() > boundstart && e.getLocation().getZ() < boundend) {
                     HashMap<String,Object> status = (HashMap<String, Object>) Anti_hanging.get(e.getUniqueId().toString());
-                    if((long)status.get("JoinTime") - System.currentTimeMillis() / 1000 < 300)
+                    if(System.currentTimeMillis() / 1000 - (long)status.get("JoinTime")  < 300)
                     {
                         if(!e.isOp()) {
                             sender.sendMessage("必须在迷宫停留五分钟以上才可以放弃");
