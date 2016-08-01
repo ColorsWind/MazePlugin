@@ -974,6 +974,17 @@ public final class MazePlugin extends JavaPlugin
                 }
                 ArrayList<Map<String,Object>> itemStack;
                 Player p = ((Player)sender);
+                if(p.getFireTicks() > 0)
+                {
+                    sender.sendMessage("你可能掉在岩浆里面，不允许执行这个指令");
+                    return false;
+                }
+                Location loc = p.getLocation();
+                if(loc.getWorld().getBlockAt(loc.getBlockX(),loc.getBlockY() - 1,loc.getBlockZ()).getType() == Material.AIR)
+                {
+                    sender.sendMessage("你可能正在下落，不允许执行这个指令");
+                    return false;
+                }
                 if(MazePlayerItemStack.get(p.getUniqueId().toString()) == null) {
                     itemStack =new ArrayList<Map<String, Object>>();
                     MazePlayerItemStack.put(p.getUniqueId().toString(), itemStack);
