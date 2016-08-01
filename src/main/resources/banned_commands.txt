@@ -1,4 +1,1 @@
-tp
-home
-wrap
-spawn
+example_command

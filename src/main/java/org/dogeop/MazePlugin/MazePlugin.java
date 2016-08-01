@@ -980,6 +980,7 @@ public final class MazePlugin extends JavaPlugin
                 }
                 else {
                     itemStack = MazePlayerItemStack.get(p.getUniqueId().toString());
+                    itemStack.trimToSize();
                 }
                 int count = 0;
                 ItemStack[] items = p.getInventory().getContents();
@@ -993,8 +994,18 @@ public final class MazePlugin extends JavaPlugin
                         }
                     }
                 }
+                for(int i = 0; i < p.getEquipment().getArmorContents().length;i++)
+                {
+                    if(items[i] != null)
+                    {
+                        if(items[i].getType() != Material.AIR)
+                        {
+                            count++;
+                        }
+                    }
+                }
                 // System.out.println("" + count + " " + itemStack.size());
-                if(itemStack.size() + count > 41)
+                if(itemStack.size() + count > 40)
                 {
                     p.sendMessage("对不起迷宫最多帮你存41个东西，清理下物品栏再试");
                     return false;
@@ -1004,20 +1015,29 @@ public final class MazePlugin extends JavaPlugin
                 p.sendMessage("目标：走到迷宫的另一角。");
                 p.sendMessage("如果下线前你在迷宫内部，而在你再次上线前迷宫被重置，那么你将被送回出生点并剥夺所有的收获物");
                 p.sendMessage("建议组团搜刮");
-                for (ItemStack i : p.getInventory())
+                for (int i = 0 ; i < p.getInventory().getSize(); i++)
                 {
-                    if(i != null) {
-                        if(i.getType() != Material.AIR) {
-                            itemStack.add(i.serialize());
+                    if(p.getInventory().getItem(i) != null) {
+                        if(p.getInventory().getItem(i).getType() != Material.AIR) {
+                            itemStack.add(p.getInventory().getItem(i).serialize());
+                            p.getInventory().setItem(i,null);
                         }
                     }
                 }
-                p.getInventory().clear();
-                for(ItemStack i : p.getInventory().getArmorContents())
+                for (int i = 0 ; i < p.getInventory().getArmorContents().length; i++)
                 {
-                    if(i != null) {
-                        if(i.getType() != Material.AIR) {
-                            itemStack.add(i.serialize());
+                    if(p.getInventory().getArmorContents()[i] != null) {
+                        if(p.getInventory().getArmorContents()[i].getType() != Material.AIR) {
+                            itemStack.add(p.getInventory().getArmorContents()[i].serialize());
+                        }
+                    }
+                }
+                ItemStack iteminmainhand = p.getEquipment().getItemInMainHand();
+                if(iteminmainhand != null) {
+                    if(iteminmainhand.getType() != Material.AIR)
+                    {
+                        {
+                            itemStack.add(iteminmainhand.serialize());
                         }
                     }
                 }
@@ -1030,6 +1050,12 @@ public final class MazePlugin extends JavaPlugin
                         }
                     }
                 }
+                p.getEquipment().setBoots(null);
+                p.getEquipment().setChestplate(null);
+                p.getEquipment().setLeggings(null);
+                p.getEquipment().setHelmet(null);
+                p.getEquipment().setItemInMainHand(null);
+                p.getEquipment().setItemInOffHand(null);
                 p.getEquipment().clear();
                 Inventory inv = p.getInventory();
                 ItemStack boots = new ItemStack(Material.LEATHER_BOOTS,1);
@@ -1064,7 +1090,11 @@ public final class MazePlugin extends JavaPlugin
                 if(e.getLocation().getX() > boundstart && e.getLocation().getY() < boundend && e.getLocation().getZ() > boundstart && e.getLocation().getZ() < boundend) {
                     ItemStack[] inv = e.getInventory().getContents();
                     for (int i = 0; i < inv.length; i++) {
-                        inv[i] = null;
+                        e.getInventory().setItem(i,null);
+                    }
+                    for (int i = 0; i < e.getInventory().getContents().length; i++)
+                    {
+                        e.getInventory().setItem(i,null);
                     }
                     Location loc;
                     if (e.getBedSpawnLocation() != null) {
@@ -1084,6 +1114,10 @@ public final class MazePlugin extends JavaPlugin
                     }
                     e.teleport(loc);
 
+                }
+                else
+                {
+                    sender.sendMessage("你还不在迷宫");
                 }
 
             }

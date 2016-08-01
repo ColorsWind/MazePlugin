@@ -6,7 +6,7 @@
 
     <groupId>org.dogeop</groupId>
     <artifactId>MazePlugin</artifactId>
-    <version>1.2-SNAPSHOT-Spigot-1.6.4--1.10.2-R0.1</version>
+    <version>1.2-SNAPSHOT-Spigot-1.9.x-R0.1</version>
 
     <build>
         <plugins>
