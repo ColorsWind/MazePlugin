@@ -25,6 +25,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.io.*;
 import java.text.NumberFormat;
 import java.util.*;
+import java.util.concurrent.RunnableFuture;
 import java.util.logging.Logger;
 import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
@@ -63,10 +64,13 @@ public final class MazePlugin extends JavaPlugin
     final int chance_monster_ghast = 9;
     boolean ReConstruct_Maze_On_Finish = true;
     boolean Admin_ReConstruct_trigger = false;
+    boolean Enable_Async_Block_Gen = false;
     Material Maze_Material_Wall = Material.BEDROCK;
     Material Maze_Material_ROOF_A = Material.OBSIDIAN;
     Material Maze_Material_ROOF_B = Material.GLASS;
     Material Maze_Material_Light = Material.PUMPKIN;
+    ArrayList<BlockMeta> blockmeta = null;
+    ArrayList<EntityMeta> entitymeta = null;
     String MazeSerialize_File = "Maze.json";
     String world = "world";
     String CommmandPattern = "";
@@ -74,6 +78,41 @@ public final class MazePlugin extends JavaPlugin
     Random random = new Random();
     Maze maze = null;
     MazeListener listener = new MazeListener();
+    class BlockMeta implements Cloneable {
+        Material type;
+        int x;
+        int y;
+        int z; //16 byte
+        ArrayList<Map<String, Object>> Inventories = null; //kb level (a few)
+        //if we generate 500 * 500 * 24
+        //will take 250000 * 24 * 16 = about 100 MB memory on generate
+
+        public BlockMeta(Material type, int x, int y, int z, ArrayList<Map<String, Object>> inventory)
+        {
+            this.type = type;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.Inventories = inventory;
+        }
+    }
+    class EntityMeta implements Cloneable {
+        EntityType type;
+        int x;
+        int y;
+        int z;
+        Map<String,Object> Details = null;
+        Map<String,Object> Inventories = null;
+        public  EntityMeta(EntityType type, int x, int y, int z, Map<String,Object> Details, Map<String, Object> inventory)
+        {
+            this.type = type;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.Details = Details;
+            this.Inventories = inventory;
+        }
+    }
     class MazeListener implements Listener {
         @EventHandler
         public void onBlockPlace(BlockPlaceEvent event)
@@ -167,12 +206,15 @@ public final class MazePlugin extends JavaPlugin
         @EventHandler
         public void onInterceptCommand(PlayerCommandPreprocessEvent event)
         {
-            if(event.getMessage().matches(CommmandPattern))
+            if(event.getMessage().split(" ")[0].matches(CommmandPattern))
             {
+                System.out.println(event.getMessage());
                 if(!event.getPlayer().isOp())
                 {
-                    if(!checkIfInMaze(event.getPlayer().getLocation()))
+                    if(checkIfInMaze(event.getPlayer().getLocation())) {
                         event.setMessage("/");
+                        event.getPlayer().sendMessage("你的命令在迷宫禁止使用");
+                    }
                 }
             }
         }
@@ -261,276 +303,547 @@ public final class MazePlugin extends JavaPlugin
             }
         }
     };
-    Runnable mMazeRunnable = new Runnable() {
-        @Override
-        public void run() {
-
-            getServer().getScheduler().callSyncMethod(MazePlugin.this, (Callable<Void>) () -> {
-                int idz = 0;
-                int light = OriginY + 5;
-                maze = new Maze(xmax);
-                maze.init();
-                maze.generate(1,1);
-                //JSON Serialize Maze and store in file
-                getServer().getScheduler().runTaskAsynchronously(MazePlugin.this, new Runnable() {
-                    @Override
-                    public void run() {
-                        String json = maze.JSONSerialize().toString();
-                        BufferedWriter bw = null;
-                        try {
-                            bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(new File(getDataFolder().getPath() + File.separator + MazeSerialize_File))));
-                            bw.write(json);
-                        } catch (FileNotFoundException e) {
-                            e.printStackTrace();
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                        finally {
-                            if(bw != null) {
-                                try {
-                                    bw.close();
-                                } catch (IOException e) {
-                                    e.printStackTrace();
-                                }
-                            }
-                        }
-                    }
-                });
-                Location locvoid = new Location(getServer().getWorld(world),0,-64,0);
-                for(Entity e : getServer().getWorld(world).getEntities()) {
-                    if(checkIfInMaze(e.getLocation())) {
-                        if(e instanceof Monster || e instanceof Rabbit || e instanceof Ghast)
-                        {
-                            //System.out.println("Clearing " + e.toString() + " " + e.getLocation().getBlockX() + " " + e.getLocation().getBlockY() + " " + e.getLocation().getBlockZ());
-                            e.remove();
-                        }
-                        else if (e instanceof Player) {
-                            Player p = (Player) e;
-                            p.sendMessage("本轮迷宫探险已经结束");
-                            Location loc = p.getLocation();
-                            if (loc.getX() >= OriginX + lastxmax * 6 - 3 && loc.getX() <= OriginX + lastxmax * 6 && loc.getZ() >= OriginZ + lastxmax * 6 - 3 && loc.getZ() < OriginZ + lastxmax * 6 && loc.getY() > OriginY) {
-                                //System.out.println("Finish");
-                            } else {
-                                Inventory inv = p.getInventory();
-                                ItemStack[] stacks = inv.getContents();
-                                System.out.println(stacks.length);
-                                for(int i = 0; i < stacks.length;i++)
-                                {
-                                    if (stacks[i] == null) {
-                                        //         System.out.println("MULL Stack");
-                                    }
-                                    else if (random.nextInt(10)< 7) {
-                                        //        System.out.println("SET TO NULL");
-                                        inv.setItem(i,null);
-                                    }
-                                }
-                            }
-                            Location spawn = null;
-
-
-                            if (p.getBedSpawnLocation() != null) {
-                                spawn = p.getBedSpawnLocation();
-                            } else {
-                                spawn = getServer().getWorld(world).getSpawnLocation();
-                            }
-                            ArrayList<Map<String, Object>> list = MazePlayerItemStack.get(p.getUniqueId().toString());
-                            if (list != null) {
-                                for (Map<String, Object> item : list) {
-                                    try {
-                                        getServer().getWorld(world).dropItem(spawn, ItemStack.deserialize(item));
-                                    }catch (IllegalArgumentException ex)
-                                    {
-                                        //  ex.printStackTrace();
-                                    }
-                                }
-                            }
-
-                            MazePlayerItemStack.remove(p.getUniqueId().toString());
-                            p.teleport(spawn);
-                        }
-                    }
-                }
-                for(String UUID : OffLineMazePlayers.keySet())
-                {
-                    OffLineMazePlayers.put(UUID,true);
-                }
-                //if we change maze to smaller size
-                //clear extra blocks
-                if(lastxmax > xmax)
-                {
-                    int vertical_limit = 6 * (lastxmax - xmax + 1);
-                    int vertical_begin = 6 * xmax;
-                    int horizontal_limit = 6 * (lastxmax + 1);
-                    int ylimit = 3 * mazeHeight_Node + OriginY + 1;
-                    int x,y,z;
-                    Location loc;
-
-                    World w = getServer().getWorld(world);
-                    for(int i = 3; i < vertical_limit;i++)
+    Runnable mMazeRunnable_Concurrent = new Runnable() {
+        public void GenMobs_Concurrent(MazeNode[] nodes)
+        {
+            int idx = 0;
+            int idz = 0;
+            for (MazeNode node : nodes) {
+                node.visited = false;
+                idx = OriginX + node.X * 3 + 1;
+                idz = OriginZ + node.Y * 3 + 1;
+                float roll = random.nextFloat();
+                // System.out.println(idx + " " + idz);
+                if(roll > chance_takaramono && roll < chance_monster) {
+                    int spawnY = OriginY + 1;
+                    if(node.isWall)
                     {
-                        for(int j = 0; j < horizontal_limit;j++)
+                        spawnY = OriginY + 6;
+                    }
+                    int decide = 1 + random.nextInt(9);
+                    int count = 1 + random.nextInt(3);
+                    for (int i = 0; i < count; i++)
+                    {
+                        EntityMeta entity;
+                        HashMap<String,Object> Detail = new HashMap<String,Object>();
+                        HashMap<String,Object> Inventory = null;
+                        EntityType type;
+                        switch (decide)
                         {
-                            for(int k = OriginY;k < ylimit;k++)
+
+                            case chance_monster_zombiepigman:
                             {
-                                w.getBlockAt(OriginX + vertical_begin + i,k,OriginZ + j ).setType(Material.AIR);
-                                w.getBlockAt(OriginZ + j ,k,OriginX + vertical_begin + i).setType(Material.AIR);
-                            }
+                                Inventory = new HashMap<String,Object>();
+                                type = EntityType.ZOMBIE;
+                                ItemStack sword = new ItemStack(Material.GOLD_SWORD);
+                                if(random.nextFloat() < 0.3)
+                                {
+                                    sword.setType(Material.DIAMOND_SWORD);
+                                    sword.addEnchantment(Enchantment.DAMAGE_ALL,4);
+                                    sword.addEnchantment(Enchantment.FIRE_ASPECT,2);
+                                    sword.addEnchantment(Enchantment.DURABILITY,3);
+                                }
+                                Inventory.put("ItemInHand", sword.serialize());
+
+                                if(random.nextFloat() < 0.5)
+                                {
+
+                                    Detail.put("isBaby",true);
+                                }
+                                else
+                                {
+                                    Detail.put("isBaby",false);
+                                }
+                                if(random.nextFloat() < 0.02) {
+                                    ItemStack helmet = new ItemStack(Material.DIAMOND_HELMET);
+                                    ItemStack chestplate = new ItemStack(Material.DIAMOND_CHESTPLATE);
+                                    ItemStack legging = new ItemStack(Material.DIAMOND_LEGGINGS);
+                                    ItemStack boots = new ItemStack(Material.DIAMOND_BOOTS);
+                                    helmet.addEnchantment(Enchantment.PROTECTION_ENVIRONMENTAL,4);
+                                    helmet.addEnchantment(Enchantment.DURABILITY,3);
+                                    chestplate.addEnchantment(Enchantment.PROTECTION_ENVIRONMENTAL,4);
+                                    chestplate.addEnchantment(Enchantment.DURABILITY,3);
+                                    legging.addEnchantment(Enchantment.PROTECTION_ENVIRONMENTAL,4);
+                                    legging.addEnchantment(Enchantment.DURABILITY,3);
+                                    boots.addEnchantment(Enchantment.PROTECTION_ENVIRONMENTAL,4);
+                                    boots.addEnchantment(Enchantment.DURABILITY,3);
+                                    Inventory.put("Helmet", helmet.serialize());
+                                    Inventory.put("Chestplate", chestplate.serialize());
+                                    Inventory.put("Legging",legging.serialize());
+                                    Inventory.put("Boots",boots.serialize());
+                                }
+
+                            }break;
+                            case chance_monster_blaze:
+                            {
+                                type = EntityType.BLAZE;
+                            }break;
+                            case chance_monster_wither_skeleton:
+                            {
+                                type = EntityType.SKELETON;
+                                Inventory = new HashMap<String,Object>();
+                                Detail.put("SkeletonType",Skeleton.SkeletonType.WITHER);
+                                Inventory.put("ItemInHand",new ItemStack(Material.IRON_SWORD).serialize());
+                            }break;
+                            case chance_monster_killerbunny:
+                            {
+                                type = EntityType.RABBIT;
+                                Detail.put("RabbitType",Rabbit.Type.THE_KILLER_BUNNY);
+                                Detail.put("MaxHealth",20.0);
+                                Detail.put("Health",20.0);
+                                if(random.nextFloat() < 0.5)
+                                {
+                                    Detail.put("isBaby",true);
+                                }
+                                else
+                                {
+                                    Detail.put("isBaby",false);
+                                }
+                            }break;
+                            case chance_monster_powercreeper:
+                            {
+                                Detail.put("Powered",true);
+                                type = EntityType.CREEPER;
+                            }break;
+                            case chance_monster_slime:
+                            {
+                                type = EntityType.SLIME;
+
+                            }break;
+                            case chance_monster_skeleton:
+                            {
+                                type = EntityType.SKELETON;
+                            }break;
+                            case chance_monster_witch:
+                            {
+                                type = EntityType.WITCH;
+                            }break;
+                            case chance_monster_ghast:
+                            {
+                                spawnY = OriginY + 12;
+                                type = EntityType.GHAST;
+                            }break;
+                            default:type=EntityType.BAT;
                         }
-                        for(Player p : getServer().getOnlinePlayers())
-                        {
-                            p.sendMessage("[" + format.format(((float)(i)) *100 / vertical_limit) + "%]正在清除残余[>_<]");
-                        }
-                        getLogger().info("[" + format.format(((float)(i)) *100 / vertical_limit) + "%]正在清除残余[>_<]");
+                        Detail.put("CustomName","Maze Monster");
+                        entitymeta.add(new EntityMeta(type,idx,spawnY,idz,Detail,Inventory));
+                    }
+
+                }
+                else if (!node.isWall) {
+                    //    System.out.println("Generation Block : "  + node.toString());
+
+                    if(roll < chance_takaramono)
+                    {
+                        //System.out.printf("Chest X %d Y %d Z %d", idx, 193 ,idz);
+                        blockmeta.add(setChest_Concurrent(idx, OriginY + 1, idz));
+
                     }
                 }
-                //end of clear
-                int posx = 0;
-                int posy = 0;
-                int posz = 0;
-                total_gen_lines = 2 * xmax;
-                for (MazeNode[] nodes : maze.maze) {
-                    for (MazeNode node : nodes) {
-                        if (ReConstruct_Maze_On_Finish || (!ReConstruct_Maze_On_Finish && Admin_ReConstruct_trigger)) {
-                            if (checkNodeIsEdge(node) && node.isWall) {
-                                //Generate Basic Walls
-                                for (int i = 0; i < mazeHeight_Node; i++) {
-                                    for (int j = 0; j < 3; j++) { //3 X Outer Layer
-                                        for (int k = 0; k < 3; k++) {   //3 X
-                                            for (int l = 0; l < 3; l++) { //3 X
-                                                posx = OriginX + node.X * 3 + k;
-                                                posy = OriginY + i * 3 + j;
-                                                posz = OriginZ + node.Y * 3 + l;
-                                                getServer().getWorld(world).getBlockAt(posx, posy, posz).setType(Maze_Material_Wall);
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
-                                //Generate Lamp ,Outer Walls , Roof
-                                for (int j = 0; j < 3; j++) {
-                                    for (int k = 0; k < 3; k++) {
-                                        posx = OriginX + node.X * 3 + j;
-                                        posz = OriginZ + node.Y * 3 + k;
-                                        getServer().getWorld(world).getBlockAt(posx, OriginY, posz).setType(Maze_Material_Wall);
-                                        //assert we generate from 0,64,0 in practice
-                                        for (int i = 0; i < 4; i++) {
-                                            if (node.isWall) {
-                                                getServer().getWorld(world).getBlockAt(posx, OriginY + 1 + i, posz).setType(Maze_Material_Wall);
-                                            } else {
-                                                getServer().getWorld(world).getBlockAt(posx, OriginY + 1 + i, posz).setType(Material.AIR);
-                                            }
-                                        }
 
-                                        if (node.isWall) {
-                                            getServer().getWorld(world).getBlockAt(posx, light, posz).setType(Maze_Material_Light);
-                                            getServer().getWorld(world).getBlockAt(posx, OriginY + mazeHeight_Node * 3, posz).setType(Maze_Material_ROOF_B);
-                                        } else {
-                                            getServer().getWorld(world).getBlockAt(posx, light, posz).setType(Material.AIR);
-                                            getServer().getWorld(world).getBlockAt(posx, OriginY + mazeHeight_Node * 3, posz).setType(Maze_Material_ROOF_A);
-                                        }
-                                    }
-                                }
-                                //Clear
-                                for (int j = 0; j < 3; j++)
-                                {
-                                    for (int k = 0; k < 3; k++)
-                                    {
-                                        for (int i = 5; i < mazeHeight_Node * 3 - 2; i++) {
-                                            posx = OriginX + node.X * 3 + j;
-                                            posz = OriginZ + node.Y * 3 + k;
-                                            if(getServer().getWorld(world).getBlockAt(posx, OriginY + 1 + i, posz).getType() != Material.AIR)
-                                            {
-                                                getServer().getWorld(world).getBlockAt(posx, OriginY + 1 + i, posz).setType(Material.AIR);
-                                            }
-                                            else
-                                            {
-                                                continue;
-                                            }
-                                        }
-                                    }
-                                }
-                                //end of clear
-                            }
+            }
+        }
+        public BlockMeta setChest_Concurrent(int x,int y,int z)
+        {
+            ArrayList<Map<String,Object>> Inventory = new ArrayList<Map<String,Object>>();
+            Random random = new Random();
+            int maxsize = 27;
+            for(int i = 0; i < maxsize;i++)
+            {
+                Inventory.add(i,null);
+            }
+            for(int j = 0; j < try_count_takaramono; j++) {
+                for (int i = 0; i < gen_count_takaramono; i++) {
+                    int invnumber = random.nextInt(maxsize);
+
+                    ItemStack item;
+                    if(Inventory.get(i) != null)
+                    {
+                        item = ItemStack.deserialize(Inventory.get(i));
+                    }
+                    else
+                    {
+                        item = null;
+                    }
+                    Material m;
+                    if (item == null) {
+                        if (random.nextFloat() < chance_takaramono_rare)
+                        {
+                            m = BonusItems_rare.get(random.nextInt(BonusItems_rare.size()));
                         }
                         else
                         {
-                            //if we do not generate
-                            //clear chests
-                            //no affect to walls
-                            getServer().getWorld(world).getBlockAt(OriginX + node.X * 3 + 1,OriginY + 1,OriginZ + node.Y * 3 + 1).setType(Material.AIR);
+                            m = BonusItems.get(random.nextInt(BonusItems.size()));
                         }
-                    }
-                    //System.out.printf("Generated line #" + idz);
-                    GenMobs(nodes);
-                    random = new Random();
-                    float percent = ((float)idz) / total_gen_lines * 100.0f;
-                    for(Player p : getServer().getOnlinePlayers())
-                    {
-                        p.sendMessage("[" + format.format(percent) +  "%] 服务器正在努力的生成迷宫啦>_<");
-                    }
-                    getLogger().info("[" + format.format(percent) +  "%] 服务器正在努力的生成迷宫啦>_<");
-                    idz++;
-                }
-                int ExitX =OriginX + maze.maze.length * 3 - 5;
-                int Exitz =OriginZ + maze.maze.length * 3 - 5;
-                //System.out.println("EXIT X,Z " + ExitX + " " + Exitz);
-                getServer().getWorld(world).getBlockAt(ExitX,OriginY + 1,Exitz - 2).setType(Material.WOOD_BUTTON);
-                getServer().getWorld(world).getBlockAt(ExitX,OriginY + 1,Exitz).setType(Material.CHEST);
-                getServer().getWorld(world).getBlockAt(ExitX,OriginY + 1,Exitz + 1).setType(Material.CHEST);
-                getServer().getWorld(world).getBlockAt(ExitX,OriginY + 1,Exitz + 1).setType(Material.CHEST);
-                for (int i = 0; i < 5;i++)
-                {
-                    setChest((Chest) getServer().getWorld(world).getBlockAt(ExitX,OriginY + 1,Exitz).getState());
-                    setChest((Chest) getServer().getWorld(world).getBlockAt(ExitX,OriginY + 1,Exitz + 1).getState());
-                }
-                getServer().getWorld(world).getBlockAt(OriginX + 5, OriginY + 1,OriginZ + 2).setType(Material.CHEST);
-                getServer().getWorld(world).getBlockAt(OriginX + 5, OriginY + 2,OriginZ + 2).setType(Material.AIR);
-                Chest chest = (Chest) getServer().getWorld(world).getBlockAt(OriginX + 5, OriginY + 1,OriginZ + 2).getState();
-                Inventory inv = chest.getInventory();
-                ItemStack boots = new ItemStack(Material.LEATHER_BOOTS,64);
-                ItemStack helmets = new ItemStack(Material.LEATHER_HELMET,64);
-                ItemStack leggings = new ItemStack(Material.LEATHER_LEGGINGS,64);
-                ItemStack chestp = new ItemStack(Material.LEATHER_CHESTPLATE,64);
-                ItemStack sword = new ItemStack(Material.IRON_SWORD,64);
-                ItemStack bow = new ItemStack(Material.BOW,5);
-                ItemStack arrow = new ItemStack(Material.ARROW,32);
-                ItemStack potato = new ItemStack(Material.BAKED_POTATO,64);
-                inv.setItem(1,boots);
-                inv.setItem(2,helmets);
-                inv.setItem(3,leggings);
-                inv.setItem(4,chestp);
-                inv.setItem(5,sword);
-                inv.setItem(6,bow);
-                inv.setItem(7,arrow);
-                inv.setItem(8,potato);
-                //now lastxmax > xmax
-                //clear a larger area
+                        if(m.toString().matches("(SWORD|CHESTPLATE|HELMET|BOOTS|LEGGINGS|PICKAXE|BOW|BOOK)"))
+                        {
+                            item = new ItemStack(m);
+                            for (int k = 0; k < random.nextInt(4); k++) {
+                                try {
+                                    item.addEnchantment(Enchantments.get(random.nextInt(Enchantments.size())), random.nextInt(5));
+                                } catch (IllegalArgumentException e)
+                                {
 
-                for(Entity e : getServer().getWorld(world).getEntities()) {
-                    if(checkIfInMaze(e.getLocation())) {
-                        if (e instanceof Item){
-                            //System.out.println("clearing " + ((Item)e).getName());
-                            Item item = (Item)e;
-                            item.remove();
+                                }
+                            }
+                        }
+                        else if(m == Material.MONSTER_EGG)
+                        {
+
+                            item = new SpawnEgg(Monsters.get(random.nextInt(Monsters.size()))).toItemStack();
+                        }
+                        else
+                        {
+                            item = new ItemStack(m);
+                        }
+                        item.setAmount(1 + random.nextInt(3));
+                    }
+                    Inventory.add(invnumber,item.serialize());
+                }
+            }
+            return new BlockMeta(Material.CHEST,x,y,z,Inventory);
+        }
+        @Override
+        public void run() {
+            long begintime = System.currentTimeMillis();
+            for(Player p : getServer().getOnlinePlayers())
+            {
+                p.sendMessage("迷宫计算中");
+            }
+            maze = new Maze(xmax);
+            maze.init();
+            maze.generate(1,1);
+            //JSON Serialize Maze and store in file
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    String json = maze.JSONSerialize().toString();
+                    BufferedWriter bw = null;
+                    try {
+                        bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(new File(getDataFolder().getPath() + File.separator + MazeSerialize_File))));
+                        bw.write(json);
+                    } catch (FileNotFoundException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    finally {
+                        if(bw != null) {
+                            try {
+                                bw.close();
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
                         }
                     }
                 }
-                if(RepeatingTaskId == -1) {
-                    RepeatingTaskId = getServer().getScheduler().scheduleSyncRepeatingTask(MazePlugin.this, mCheckPlayerPositionRunnable, 0, 10);
+            }).start();
+            //Location locvoid = new Location(getServer().getWorld(world),0,-64,0);
+            for(Entity e : getServer().getWorld(world).getEntities()) {
+                if (checkIfInMaze(e.getLocation())) {
+                    if (e instanceof Monster || e instanceof Rabbit || e instanceof Ghast) {
+                        //System.out.println("Clearing " + e.toString() + " " + e.getLocation().getBlockX() + " " + e.getLocation().getBlockY() + " " + e.getLocation().getBlockZ());
+                        e.remove();
+                    } else if (e instanceof Player) {
+                        Player p = (Player) e;
+                        p.sendMessage("本轮迷宫探险已经结束");
+                        Location loc = p.getLocation();
+                        if (loc.getX() >= OriginX + lastxmax * 6 - 3 && loc.getX() <= OriginX + lastxmax * 6 && loc.getZ() >= OriginZ + lastxmax * 6 - 3 && loc.getZ() < OriginZ + lastxmax * 6 && loc.getY() > OriginY) {
+                            //System.out.println("Finish");
+                        } else {
+                            Inventory inv = p.getInventory();
+                            ItemStack[] stacks = inv.getContents();
+                            System.out.println(stacks.length);
+                            for (int i = 0; i < stacks.length; i++) {
+                                if (stacks[i] == null) {
+                                    //         System.out.println("MULL Stack");
+                                } else if (random.nextInt(10) < 7) {
+                                    //        System.out.println("SET TO NULL");
+                                    inv.setItem(i, null);
+                                }
+                            }
+                        }
+                        Location spawn = null;
+
+
+                        if (p.getBedSpawnLocation() != null) {
+                            spawn = p.getBedSpawnLocation();
+                        } else {
+                            spawn = getServer().getWorld(world).getSpawnLocation();
+                        }
+                        ArrayList<Map<String, Object>> list = MazePlayerItemStack.get(p.getUniqueId().toString());
+                        if (list != null) {
+                            for (Map<String, Object> item : list) {
+                                try {
+                                    getServer().getWorld(world).dropItem(spawn, ItemStack.deserialize(item));
+                                } catch (IllegalArgumentException ex) {
+                                    //  ex.printStackTrace();
+                                }
+                            }
+                        }
+
+                        MazePlayerItemStack.remove(p.getUniqueId().toString());
+                        p.teleport(spawn);
+                    }
                 }
-                System.out.println("return");
-                //change lastxmax to xmax
-                lastxmax = xmax;
-                FileConfiguration conf =  getConfig();
-                conf.set("lastWidthX",xmax);
-                conf.save(getDataFolder() + File.separator + "config.yml");
-                //reset trigger
-                if(Admin_ReConstruct_trigger)
-                {
-                    Admin_ReConstruct_trigger = false;
+            }
+            for(String UUID : OffLineMazePlayers.keySet())
+            {
+                OffLineMazePlayers.put(UUID,true);
+            }
+
+            //end of clear
+            Runnable BlockUpdateRunnable_Concurrent = new Runnable() {
+                @Override
+                public void run() {
+                    blockmeta = new ArrayList<BlockMeta>();
+                    entitymeta = new ArrayList<EntityMeta>();
+                    //if we change maze to smaller size
+                    //clear extra blocks
+                    if(lastxmax > xmax)
+                    {
+                        int vertical_limit = 6 * (lastxmax - xmax + 1);
+                        int vertical_begin = 6 * xmax;
+                        int horizontal_limit = 6 * (lastxmax + 1);
+                        int ylimit = 3 * mazeHeight_Node + OriginY + 1;
+                        for(int i = 3; i < vertical_limit;i++)
+                        {
+                            for(int j = 0; j < horizontal_limit;j++)
+                            {
+                                for(int k = OriginY;k < ylimit;k++)
+                                {
+                                    BlockMeta meta = new BlockMeta(Material.AIR,OriginX + vertical_begin + i,k,OriginZ + j , null);
+                                    BlockMeta meta1 = new BlockMeta(Material.AIR,OriginZ + j ,k,OriginX + vertical_begin + i, null);
+                                    blockmeta.add(meta);
+                                    blockmeta.add(meta1);
+                                }
+                            }
+                        }
+                    }
+                    //end of clear
+                    int posx = 0;
+                    int posy = 0;
+                    int posz = 0;
+                    int idz = 0;
+                    int light = OriginY + 5;
+                    total_gen_lines = 2 * xmax;
+                    for (MazeNode[] nodes : maze.maze) {
+                        for (MazeNode node : nodes) {
+                            if (ReConstruct_Maze_On_Finish || (!ReConstruct_Maze_On_Finish && Admin_ReConstruct_trigger)) {
+                                if (checkNodeIsEdge(node) && node.isWall) {
+                                    //Generate Basic Walls
+                                    for (int i = 0; i < mazeHeight_Node; i++) {
+                                        for (int j = 0; j < 3; j++) { //3 X Outer Layer
+                                            for (int k = 0; k < 3; k++) {   //3 X
+                                                for (int l = 0; l < 3; l++) { //3 X
+                                                    posx = OriginX + node.X * 3 + k;
+                                                    posy = OriginY + i * 3 + j;
+                                                    posz = OriginZ + node.Y * 3 + l;
+                                                    BlockMeta meta = new BlockMeta(Maze_Material_Wall,posx,posy,posz , null);
+                                                    blockmeta.add(meta);
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    //Generate Lamp ,Outer Walls , Roof
+                                    for (int j = 0; j < 3; j++) {
+                                        for (int k = 0; k < 3; k++) {
+                                            posx = OriginX + node.X * 3 + j;
+                                            posz = OriginZ + node.Y * 3 + k;
+                                            blockmeta.add(new BlockMeta(Maze_Material_Wall,posx, OriginY, posz,null));
+                                            //assert we generate from 0,64,0 in practice
+                                            for (int i = 0; i < 4; i++) {
+                                                if (node.isWall) {
+                                                    blockmeta.add(new BlockMeta(Maze_Material_Wall,posx,OriginY + 1 + i,posz , null));
+                                                } else {
+                                                    blockmeta.add(new BlockMeta(Material.AIR,posx,OriginY + 1 + i,posz , null));
+                                                }
+                                            }
+
+                                            if (node.isWall) {
+                                                blockmeta.add(new BlockMeta(Maze_Material_Light,posx,light,posz , null));
+                                                blockmeta.add(new BlockMeta(Maze_Material_ROOF_B,posx, OriginY + mazeHeight_Node * 3, posz , null));
+                                            } else {
+                                                blockmeta.add(new BlockMeta(Material.AIR,posx,light,posz , null));
+                                                blockmeta.add(new BlockMeta(Maze_Material_ROOF_A,posx, OriginY + mazeHeight_Node * 3, posz , null));
+                                            }
+                                        }
+                                    }
+                                    //Clear
+                                    for (int j = 0; j < 3; j++)
+                                    {
+                                        for (int k = 0; k < 3; k++)
+                                        {
+                                            for (int i = 5; i < mazeHeight_Node * 3 - 2; i++) {
+                                                posx = OriginX + node.X * 3 + j;
+                                                posz = OriginZ + node.Y * 3 + k;
+                                                blockmeta.add(new BlockMeta(Material.AIR,OriginY + 1 + i,light,posz , null));
+                                            }
+                                        }
+                                    }
+                                    //end of clear
+                                }
+                            }
+                            else
+                            {
+                                //if we do not generate
+                                //clear chests
+                                //no affect to walls
+
+                                        blockmeta.add(new BlockMeta(Material.AIR,OriginX + node.X * 3 - 2,OriginY + 1,OriginZ + node.Y * 3 - 2, null));
+                            }
+
+                        }
+                        //System.out.printf("Generated line #" + idz);
+                        random = new Random();
+                        idz++;
+                    }
+                    for(MazeNode[] nodes : maze.maze)
+                    {
+                        GenMobs_Concurrent(nodes);
+                    }
+                    for(int i = 1; i < 4; i++)
+                    {
+                        for(int j = 1; j < 4; j++)
+                        {
+                            for(int k = 1; k < 4 ; k++)
+                            {
+                                blockmeta.add(new BlockMeta(Material.AIR,OriginX + (maze.maze.length - 1) * 3 - i,OriginY + j,OriginZ + (maze.maze.length - 1) * 3 - k, null));
+                            }
+                        }
+                    }
+                    double lastchance = chance_takaramono_rare;
+                    chance_takaramono_rare *= 4;
+                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 1, OriginY + 1, OriginZ + (maze.maze.length - 1) * 3 - 1));
+                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 2, OriginY + 1, OriginZ + (maze.maze.length - 1) * 3 - 2));
+                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 3, OriginY + 1, OriginZ + (maze.maze.length - 1) * 3 - 3));
+                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 1, OriginY + 1, OriginZ + (maze.maze.length - 1) * 3 - 3));
+                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 3, OriginY + 1, OriginZ + (maze.maze.length - 1) * 3 - 1));
+                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 1, OriginY + 3, OriginZ + (maze.maze.length - 1) * 3 - 1));
+                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 2, OriginY + 3, OriginZ + (maze.maze.length - 1) * 3 - 2));
+                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 3, OriginY + 3, OriginZ + (maze.maze.length - 1) * 3 - 3));
+                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 3, OriginY + 3, OriginZ + (maze.maze.length - 1) * 3 - 1));
+                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 1, OriginY + 3, OriginZ + (maze.maze.length - 1) * 3 - 3));
+                    chance_takaramono_rare = lastchance;
+                    getServer().getScheduler().callSyncMethod(MazePlugin.this, new Callable<Void>() {
+                        @Override
+                        public Void call() throws Exception {
+                            int ExitX = OriginX + maze.maze.length * 3 - 5;
+                            int Exitz = OriginZ + maze.maze.length * 3 - 5;
+                            //System.out.println("EXIT X,Z " + ExitX + " " + Exitz);
+                            World w = getServer().getWorld(world);
+                            //Convert Metadata to Blocks
+                            for (int i = 0; i < blockmeta.size(); i++)
+                            {
+                                if(i % 100000 == 0)
+                                {
+                                    float percent = ((float)i) / blockmeta.size() * 100.0f;
+                                    final String broadcast = "[" + format.format(percent) +  "%] 已经处理： " + i + " 块， 总共生成 ： " + blockmeta.size()+  " 服务器正在努力的生成迷宫啦>_<";
+                                    for(Player p : getServer().getOnlinePlayers())
+                                    {
+                                        p.sendMessage(broadcast);
+                                    }
+                                    getLogger().info(broadcast);
+                                }
+                                BlockMeta meta = blockmeta.get(i);
+                                w.getBlockAt(meta.x,meta.y,meta.z).setType(meta.type);
+                                if(meta.type == Material.CHEST)
+                                {
+                                    Chest chest = (Chest) w.getBlockAt(meta.x,meta.y,meta.z).getState();
+                                    Inventory inv = chest.getInventory();
+                                    for(int j = 0; j < 27;j++)
+                                    {
+                                        if(meta.Inventories.get(j) != null)
+                                        {
+                                            inv.setItem(j,ItemStack.deserialize(meta.Inventories.get(j)));
+                                        }
+                                    }
+                                }
+                            }
+                            //Spawn Entites by metadata
+                            for(Player p : getServer().getOnlinePlayers())
+                            {
+                                p.sendMessage("服务器正在努力刷怪");
+                            }
+
+                            for (int i = 0; i < entitymeta.size(); i++) {
+                                Entity entity = w.spawnEntity(new Location(w, entitymeta.get(i).x, entitymeta.get(i).y, entitymeta.get(i).z), entitymeta.get(i).type);
+                                if (entity instanceof Zombie) {
+                                    Zombie z = (Zombie) entity;
+                                    z.setBaby((Boolean) entitymeta.get(i).Details.get("isBaby"));
+                                    z.getEquipment().setItemInMainHand(ItemStack.deserialize((Map<String, Object>) entitymeta.get(i).Inventories.get("ItemInHand")));
+                                    if (entitymeta.get(i).Details.get("ChestPlate") != null) {
+                                        z.getEquipment().setItemInMainHand(ItemStack.deserialize((Map<String, Object>) entitymeta.get(i).Inventories.get("ChestPlate")));
+                                        z.getEquipment().setItemInMainHand(ItemStack.deserialize((Map<String, Object>) entitymeta.get(i).Inventories.get("Helmet")));
+                                        z.getEquipment().setItemInMainHand(ItemStack.deserialize((Map<String, Object>) entitymeta.get(i).Inventories.get("Leggings")));
+                                        z.getEquipment().setItemInMainHand(ItemStack.deserialize((Map<String, Object>) entitymeta.get(i).Inventories.get("Boots")));
+                                    }
+                                } else if (entity instanceof Creeper) {
+                                    Creeper c = (Creeper) entity;
+                                    c.setPowered((Boolean) entitymeta.get(i).Details.get("Powered"));
+                                } else if (entity instanceof Skeleton) {
+                                    Skeleton s = (Skeleton) entity;
+                                    if (entitymeta.get(i).Details.get("SkeletonType") != null) {
+                                        s.setSkeletonType((Skeleton.SkeletonType) entitymeta.get(i).Details.get("SkeletonType"));
+                                        s.getEquipment().setItemInMainHand(ItemStack.deserialize((Map<String, Object>) entitymeta.get(i).Inventories.get("ItemInHand")));
+                                    }
+                                } else if (entity instanceof Rabbit) {
+                                    Rabbit r = (Rabbit) entity;
+                                    r.setRabbitType(Rabbit.Type.THE_KILLER_BUNNY);
+                                    r.setMaxHealth((Double) entitymeta.get(i).Details.get("MaxHealth"));
+                                    r.setHealth((Double) entitymeta.get(i).Details.get("Health"));
+                                    if ((Boolean) entitymeta.get(i).Details.get("isBaby")) {
+                                        r.setBaby();
+                                    }
+                                }
+                            }
+
+
+                            //now lastxmax > xmax
+                            //clear a larger area
+
+                            for(Entity e : getServer().getWorld(world).getEntities()) {
+                                if(checkIfInMaze(e.getLocation())) {
+                                    if (e instanceof Item){
+                                        //System.out.println("clearing " + ((Item)e).getName());
+                                        Item item = (Item)e;
+                                        item.remove();
+                                    }
+                                }
+                            }
+                            long elapsed = (System.currentTimeMillis() - begintime) / 1000;
+                            for(Player p : getServer().getOnlinePlayers())
+                            {
+                                p.sendMessage("清理中----完成！");
+                                p.sendMessage("耗时" + format.format(elapsed) + "秒");
+                            }
+
+                            if(RepeatingTaskId == -1) {
+                                RepeatingTaskId = getServer().getScheduler().scheduleSyncRepeatingTask(MazePlugin.this, mCheckPlayerPositionRunnable, 0, 10);
+                            }
+                            System.out.println("return");
+                            //change lastxmax to xmax
+                            lastxmax = xmax;
+                            FileConfiguration conf =  getConfig();
+                            conf.set("lastWidthX",xmax);
+                            conf.save(getDataFolder() + File.separator + "config.yml");
+                            //reset trigger
+                            if(Admin_ReConstruct_trigger)
+                            {
+                                Admin_ReConstruct_trigger = false;
+                            }
+                            blockmeta.clear();
+                            entitymeta.clear();
+                            blockmeta = null;
+                            entitymeta = null;
+                            return null;
+                        }
+                    });
                 }
-                return null;
-            });
+            };
+            getServer().getScheduler().runTaskAsynchronously(MazePlugin.this,BlockUpdateRunnable_Concurrent);
+
         }
     };
 
@@ -634,7 +947,7 @@ public final class MazePlugin extends JavaPlugin
         }
         int xboundend = OriginX + 3 * (2 * lastxmax + 1);
         int zboundend = OriginZ + 3 * (2 * lastxmax + 1);
-       // System.out.println(xboundend + " " + zboundend + " " + loc.getBlockX() + " " + loc.getBlockZ());
+        // System.out.println(xboundend + " " + zboundend + " " + loc.getBlockX() + " " + loc.getBlockZ());
         if(loc.getX() > OriginX && loc.getX() < xboundend && loc.getZ() > OriginZ && loc.getZ() < zboundend)
         {
             return true;
@@ -643,186 +956,9 @@ public final class MazePlugin extends JavaPlugin
             return false;
         }
     }
-    public void GenMobs(MazeNode[] nodes)
-    {
-        int idx = 0;
-        int idz = 0;
-        for (MazeNode node : nodes) {
-            node.visited = false;
-            idx = OriginX + node.X * 3 + 1;
-            idz = OriginZ + node.Y * 3 + 1;
-            float roll = random.nextFloat();
-           // System.out.println(idx + " " + idz);
-            if(roll > chance_takaramono && roll < chance_monster) {
-                int spawnY = OriginY + 1;
-                if(node.isWall)
-                {
-                    spawnY = OriginY + 6;
-                }
-                int decide = 1 + random.nextInt(9);
-                int count = 1 + random.nextInt(3);
-                for (int i = 0; i < count; i++)
-                {
-                    Entity entity;
-                    switch (decide)
-                    {
 
-                        case chance_monster_zombiepigman:
-                        {
-                            Zombie zombie = (Zombie) getServer().getWorld(world).spawnEntity(new Location(getServer().getWorld(world),idx, spawnY, idz),EntityType.ZOMBIE);
-                            entity = zombie;
-                            ItemStack sword = new ItemStack(Material.GOLD_SWORD);
-                            if(random.nextFloat() < 0.3)
-                            {
-                                sword.setType(Material.DIAMOND_SWORD);
-                                sword.addEnchantment(Enchantment.DAMAGE_ALL,4);
-                                sword.addEnchantment(Enchantment.FIRE_ASPECT,2);
-                                sword.addEnchantment(Enchantment.DURABILITY,3);
-                            }
-                            if(random.nextFloat() < 0.5)
-                            {
-                                zombie.setBaby(true);
-                            }
-                            if(random.nextFloat() < 0.02) {
-                                ItemStack helmet = new ItemStack(Material.DIAMOND_HELMET);
-                                ItemStack chestplate = new ItemStack(Material.DIAMOND_CHESTPLATE);
-                                ItemStack legging = new ItemStack(Material.DIAMOND_LEGGINGS);
-                                ItemStack boots = new ItemStack(Material.DIAMOND_BOOTS);
-                                helmet.addEnchantment(Enchantment.PROTECTION_ENVIRONMENTAL,4);
-                                helmet.addEnchantment(Enchantment.DURABILITY,3);
-                                chestplate.addEnchantment(Enchantment.PROTECTION_ENVIRONMENTAL,4);
-                                chestplate.addEnchantment(Enchantment.DURABILITY,3);
-                                legging.addEnchantment(Enchantment.PROTECTION_ENVIRONMENTAL,4);
-                                legging.addEnchantment(Enchantment.DURABILITY,3);
-                                boots.addEnchantment(Enchantment.PROTECTION_ENVIRONMENTAL,4);
-                                boots.addEnchantment(Enchantment.DURABILITY,3);
-                                zombie.getEquipment().setHelmet(helmet);
-                                zombie.getEquipment().setChestplate(chestplate);
-                                zombie.getEquipment().setLeggings(legging);
-                                zombie.getEquipment().setBoots(boots);
-                            }
-                            zombie.getEquipment().setItemInMainHand(sword);
-                            roll = random.nextFloat();
 
-                        }break;
-                        case chance_monster_blaze:
-                        {
-                            entity = getServer().getWorld(world).spawnEntity(new Location(getServer().getWorld(world),idx, spawnY, idz),EntityType.BLAZE);
-                        }break;
-                        case chance_monster_wither_skeleton:
-                        {
-                            Skeleton s = (Skeleton) getServer().getWorld(world).spawnEntity(new Location(getServer().getWorld(world),idx, spawnY, idz),EntityType.SKELETON);
-                            entity = s;
-                            s.setSkeletonType(Skeleton.SkeletonType.WITHER);
-                            s.getEquipment().setItemInMainHand(new ItemStack(Material.IRON_SWORD));
-                        }break;
-                        case chance_monster_killerbunny:
-                        {
-                            Rabbit rabbit = (Rabbit) getServer().getWorld(world).spawnEntity(new Location(getServer().getWorld(world),idx, spawnY, idz),EntityType.RABBIT);
-                            rabbit.setRabbitType(Rabbit.Type.THE_KILLER_BUNNY);
-                            rabbit.setMaxHealth(20);
-                            rabbit.setHealth(20);
-                            entity = rabbit;
-                        }break;
-                        case chance_monster_powercreeper:
-                        {
-                            Creeper creeper = (Creeper) getServer().getWorld(world).spawnEntity(new Location(getServer().getWorld(world),idx, spawnY, idz),EntityType.CREEPER);
-                            creeper.setPowered(true);
-                            entity = creeper;
-                        }break;
-                        case chance_monster_slime:
-                        {
-                            entity = getServer().getWorld(world).spawnEntity(new Location(getServer().getWorld(world),idx, spawnY, idz),EntityType.SLIME);
 
-                        }break;
-                        case chance_monster_skeleton:
-                        {
-                            entity = getServer().getWorld(world).spawnEntity(new Location(getServer().getWorld(world),idx, spawnY, idz),EntityType.SKELETON);
-                        }break;
-                        case chance_monster_witch:
-                        {
-                            entity = getServer().getWorld(world).spawnEntity(new Location(getServer().getWorld(world),idx, spawnY, idz),EntityType.WITCH);
-                        }break;
-                        case chance_monster_ghast:
-                        {
-                            spawnY = OriginY + 12;
-                            Ghast ghast = (Ghast) getServer().getWorld(world).spawnEntity(new Location(getServer().getWorld(world),idx, spawnY, idz),EntityType.GHAST);
-                            entity = ghast;
-                        }break;
-                        default:entity=null;
-                    }
-                    entity.setCustomName("Maze Monster");
-                }
-
-            }
-            else if (!node.isWall) {
-                //    System.out.println("Generation Block : "  + node.toString());
-
-                if(roll < chance_takaramono)
-                {
-                    //System.out.printf("Chest X %d Y %d Z %d", idx, 193 ,idz);
-                    getServer().getWorld(world).getBlockAt(idx, OriginY + 1, idz).setType(Material.CHEST);
-                    Chest chest = (Chest) getServer().getWorld(world).getBlockAt(idx, OriginY + 1, idz).getState();
-                    setChest(chest);
-
-                }
-            }
-
-        }
-    }
-    public void setChest(Chest chest)
-    {
-        Inventory inv = chest.getBlockInventory();
-        Random random = new Random();
-        int maxsize = 27;
-        for(int j = 0; j < try_count_takaramono; j++) {
-            for (int i = 0; i < gen_count_takaramono; i++) {
-                int invnumber = random.nextInt(maxsize);
-                ItemStack item = inv.getItem(invnumber);
-                Material m;
-                if (random.nextFloat() < chance_takaramono_rare)
-                {
-                    m = BonusItems_rare.get(random.nextInt(BonusItems_rare.size()));
-                }
-                else
-                {
-                    m = BonusItems.get(random.nextInt(BonusItems.size()));
-                }
-                if (item == null) {
-
-                    if(m.toString().matches("SWORD|CHESTPLATE|HELMET|BOOTS|LEGGINGS|PICKAXE|BOW|BOOK"))
-                    {
-                        item = new ItemStack(m);
-                        for (int k = 0; k < random.nextInt(4); k++) {
-                            try {
-                                item.addEnchantment(Enchantments.get(random.nextInt(Enchantments.size())), random.nextInt(5));
-                            } catch (IllegalArgumentException e)
-                            {
-
-                            }
-                        }
-                    }
-                    else if(m == Material.MONSTER_EGG)
-                    {
-
-                        item = new SpawnEgg(Monsters.get(random.nextInt(Monsters.size()))).toItemStack();
-                    }
-                    else
-                    {
-                        item = new ItemStack(m);
-                    }
-                    item.setAmount(1 + random.nextInt(3));
-                } else {
-
-                    if (item.getType() == m)
-                    {
-                        item.setAmount(item.getAmount() + random.nextInt(3));
-                    }
-                }
-                inv.setItem(invnumber, item);
-            }
-        }
-    }
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args)
     {
@@ -857,7 +993,7 @@ public final class MazePlugin extends JavaPlugin
                         }
                     }
                 }
-               // System.out.println("" + count + " " + itemStack.size());
+                // System.out.println("" + count + " " + itemStack.size());
                 if(itemStack.size() + count > 41)
                 {
                     p.sendMessage("对不起迷宫最多帮你存41个东西，清理下物品栏再试");
@@ -868,9 +1004,6 @@ public final class MazePlugin extends JavaPlugin
                 p.sendMessage("目标：走到迷宫的另一角。");
                 p.sendMessage("如果下线前你在迷宫内部，而在你再次上线前迷宫被重置，那么你将被送回出生点并剥夺所有的收获物");
                 p.sendMessage("建议组团搜刮");
-
-
-
                 for (ItemStack i : p.getInventory())
                 {
                     if(i != null) {
@@ -898,6 +1031,23 @@ public final class MazePlugin extends JavaPlugin
                     }
                 }
                 p.getEquipment().clear();
+                Inventory inv = p.getInventory();
+                ItemStack boots = new ItemStack(Material.LEATHER_BOOTS,1);
+                ItemStack helmets = new ItemStack(Material.LEATHER_HELMET,1);
+                ItemStack leggings = new ItemStack(Material.LEATHER_LEGGINGS,1);
+                ItemStack chestp = new ItemStack(Material.LEATHER_CHESTPLATE,1);
+                ItemStack sword = new ItemStack(Material.IRON_SWORD,1);
+                ItemStack bow = new ItemStack(Material.BOW,1);
+                ItemStack arrow = new ItemStack(Material.ARROW,16);
+                ItemStack potato = new ItemStack(Material.BAKED_POTATO,24);
+                inv.setItem(1,boots);
+                inv.setItem(2,helmets);
+                inv.setItem(3,leggings);
+                inv.setItem(4,chestp);
+                inv.setItem(5,sword);
+                inv.setItem(6,bow);
+                inv.setItem(7,arrow);
+                inv.setItem(8,potato);
             }
         }
         else if(cmd.getName().equals("Abort"))
@@ -949,7 +1099,7 @@ public final class MazePlugin extends JavaPlugin
                 Location loc = ((Player) sender).getLocation();
                 if (loc.getX() >= OriginX +  xmax * 6 - 3  && loc.getX() <=OriginX + xmax * 6 && loc.getZ() >= OriginZ + xmax * 6 - 3 && loc.getZ() < OriginZ + xmax * 6 && loc.getY() > OriginY)
                 {
-                    mMazeRunnable.run();
+                    mMazeRunnable_Concurrent.run();
                 }
                 else
                 {
@@ -963,7 +1113,7 @@ public final class MazePlugin extends JavaPlugin
             {
                 Admin_ReConstruct_trigger = true;
                 sender.sendMessage("生成中，如果是第一次生成会卡服约10-20分钟，迷宫从无到有会消耗大量资源。如出现崩溃，清修改spigot.yml的timeout避免服务器报错。");
-                mMazeRunnable.run();
+                mMazeRunnable_Concurrent.run();
             }
         }
         else if(cmd.getName().equals("SetSize"))
@@ -982,7 +1132,7 @@ public final class MazePlugin extends JavaPlugin
                         config.save(getDataFolder() + File.separator + "config.yml");
                         xmax = width;
                         Admin_ReConstruct_trigger = true;
-                        mMazeRunnable.run();
+                        mMazeRunnable_Concurrent.run();
                     }
                     else
                     {
@@ -1048,12 +1198,12 @@ public final class MazePlugin extends JavaPlugin
                 line = br.readLine();
                 try {
                     EntityType e = EntityType.valueOf(line);
-             //       System.out.println(e.toString());
+                    //       System.out.println(e.toString());
                     Monsters.add(e);
                 }
                 catch (NullPointerException ex)
                 {
-               //     System.out.println("Read null");
+                    //     System.out.println("Read null");
                 }
                 catch (IllegalArgumentException ex)
                 {
@@ -1066,12 +1216,12 @@ public final class MazePlugin extends JavaPlugin
                 try {
                     line = br.readLine();
                     Material e = Material.valueOf(line);
-                 //   System.out.println(e.toString());
+                    //   System.out.println(e.toString());
                     BonusItems.add(e);
                 }
                 catch (NullPointerException ex)
                 {
-                   // System.out.println("Read null");
+                    // System.out.println("Read null");
                 }
                 catch (IllegalArgumentException ex)
                 {
@@ -1122,6 +1272,7 @@ public final class MazePlugin extends JavaPlugin
             ReConstruct_Maze_On_Finish = config.getBoolean("ReConstruct_Maze_On_Finish");
             try_count_takaramono = config.getInt("Takaramono_try_count");
             gen_count_takaramono = config.getInt("Takaramono_generation_count");
+            Enable_Async_Block_Gen = config.getBoolean("ReConstruct_Maze_On_Finish");
             System.out.println("Enabling Maze");
 
             try {
