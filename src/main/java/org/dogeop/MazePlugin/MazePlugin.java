@@ -426,10 +426,10 @@ public final class MazePlugin extends JavaPlugin
                     }
                     Location loc = new Location(w,idx,spawnY,idz);
                     int decide = 1 + random.nextInt(9);
-                    int count = 1 + random.nextInt(3);
+                    int count = random.nextInt(2);
                     for (int i = 0; i < count; i++)
                     {
-                        Entity e;
+                        LivingEntity e;
                         switch (decide)
                         {
 
@@ -450,7 +450,7 @@ public final class MazePlugin extends JavaPlugin
                                 if(random.nextFloat() < 0.5)
                                 {
 
-                                   z.setBaby(true);
+                                    z.setBaby(true);
                                 }
                                 else
                                 {
@@ -478,7 +478,7 @@ public final class MazePlugin extends JavaPlugin
                             }break;
                             case chance_monster_blaze:
                             {
-                                e = w.spawnEntity(loc,EntityType.BLAZE);
+                                e = (LivingEntity) w.spawnEntity(loc,EntityType.BLAZE);
                             }break;
                             case chance_monster_wither_skeleton:
                             {
@@ -501,30 +501,31 @@ public final class MazePlugin extends JavaPlugin
                             }break;
                             case chance_monster_powercreeper:
                             {
-                                e = w.spawnEntity(loc,EntityType.CREEPER);
+                                e = (LivingEntity) w.spawnEntity(loc,EntityType.CREEPER);
                                 ((Creeper)e).setPowered(true);
 
                             }break;
                             case chance_monster_slime:
                             {
-                                e = w.spawnEntity(loc,EntityType.SLIME);
+                                e = (LivingEntity) w.spawnEntity(loc,EntityType.SLIME);
                             }break;
                             case chance_monster_skeleton:
                             {
-                                e = w.spawnEntity(loc,EntityType.SKELETON);
+                                e = (LivingEntity) w.spawnEntity(loc,EntityType.SKELETON);
                             }break;
                             case chance_monster_witch:
                             {
-                                e = w.spawnEntity(loc,EntityType.WITCH);
+                                e = (LivingEntity) w.spawnEntity(loc,EntityType.WITCH);
                             }break;
                             case chance_monster_ghast:
                             {
                                 loc.setY(OriginY + 12);
-                                e = w.spawnEntity(loc,EntityType.GHAST);
+                                e = (LivingEntity) w.spawnEntity(loc,EntityType.GHAST);
                             }break;
                             default:e = null;
                         }
                         e.setCustomName("Maze Monster");
+                        e.setRemoveWhenFarAway(false);
                     }
 
                 }
@@ -696,7 +697,7 @@ public final class MazePlugin extends JavaPlugin
             {
                 OffLineMazePlayers.put(UUID,true);
             }
-
+            w.commit();
             //end of clear
 
 
@@ -798,9 +799,7 @@ public final class MazePlugin extends JavaPlugin
                 random = new Random();
                 idz++;
             }
-            for (MazeNode[] nodes : maze.maze) {
-                GenMobs_Concurrent(nodes);
-            }
+
             for (int i = 1; i < 4; i++) {
                 for (int j = 1; j < 4; j++) {
                     for (int k = 1; k < 4; k++) {
@@ -813,6 +812,16 @@ public final class MazePlugin extends JavaPlugin
 
             double lastchance = chance_takaramono_rare;
             chance_takaramono_rare *= 4;
+            for(int i = 1;i < 4;i++)
+            {
+                for(int j = 1; j < 4; j++)
+                {
+                    for(int k = 1; k < 4;k++)
+                    {
+                        w.getBlockAt(OriginX + (maze.maze.length - 1) * 3 - i, OriginY  + j, OriginZ + (maze.maze.length - 1) * 3 - k).setType(Material.AIR);
+                    }
+                }
+            }
             chestmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 1, OriginY + 1, OriginZ + (maze.maze.length - 1) * 3 - 1));
             chestmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 2, OriginY + 1, OriginZ + (maze.maze.length - 1) * 3 - 2));
             chestmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 3, OriginY + 1, OriginZ + (maze.maze.length - 1) * 3 - 3));
@@ -827,19 +836,6 @@ public final class MazePlugin extends JavaPlugin
 
 
             //set chest at the end
-
-            //clear items
-            for (Entity e : w.getEntities()) {
-                if (checkIfInMaze(e.getLocation())) {
-                    if (e instanceof Item) {
-                        //System.out.println("clearing " + ((Item)e).getName());
-                        Item item = (Item) e;
-                        item.remove();
-                    }
-                }
-            }
-            //end of clear
-
 
             if (RepeatingTaskId == -1) {
                 RepeatingTaskId = getServer().getScheduler().scheduleSyncRepeatingTask(MazePlugin.this, mCheckPlayerPositionRunnable, 0, 10);
@@ -874,6 +870,21 @@ public final class MazePlugin extends JavaPlugin
                     return null;
                 }
             });
+            w.commit();
+            for (MazeNode[] nodes : maze.maze) {
+                GenMobs_Concurrent(nodes);
+            }
+            //clear items
+            for (Entity e : w.getEntities()) {
+                if (checkIfInMaze(e.getLocation())) {
+                    if (e instanceof Item) {
+                        //System.out.println("clearing " + ((Item)e).getName());
+                        Item item = (Item) e;
+                        item.remove();
+                    }
+                }
+            }
+            //end of clear
             w.commit();
             long elapsed = (System.currentTimeMillis() - begintime) / 1000;
             getServer().getScheduler().callSyncMethod(MazePlugin.this, new Callable<Void>() {
