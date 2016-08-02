@@ -1,9 +1,12 @@
 package org.dogeop.MazePlugin;
 
 
+import com.boydti.fawe.bukkit.wrapper.AsyncWorld;
+import com.boydti.fawe.util.TaskManager;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Chest;
 import org.bukkit.command.Command;
@@ -23,17 +26,17 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.material.SpawnEgg;
-import org.bukkit.Material;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.projectiles.ProjectileSource;
 
 import java.io.*;
 import java.text.NumberFormat;
-import java.util.*;
-import java.util.concurrent.RunnableFuture;
-import java.util.logging.Logger;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.Callable;
-import java.util.regex.Pattern;
+import java.util.logging.Logger;
 
 public final class MazePlugin extends JavaPlugin
 {
@@ -71,12 +74,13 @@ public final class MazePlugin extends JavaPlugin
     boolean ReConstruct_Maze_On_Finish = true;
     boolean Admin_ReConstruct_trigger = false;
     boolean Enable_Async_Block_Gen = false;
+    boolean busy = false;
+    private Object lock = new Object();
     Material Maze_Material_Wall = Material.BEDROCK;
     Material Maze_Material_ROOF_A = Material.OBSIDIAN;
     Material Maze_Material_ROOF_B = Material.GLASS;
     Material Maze_Material_Light = Material.PUMPKIN;
-    ArrayList<BlockMeta> blockmeta = null;
-    ArrayList<EntityMeta> entitymeta = null;
+    ArrayList<BlockMeta> chestmeta = new ArrayList<BlockMeta>();
     HashMap<String, Object> Anti_hanging = new HashMap<String,Object>();
     String MazeSerialize_File = "Maze.json";
     String world = "world";
@@ -122,30 +126,36 @@ public final class MazePlugin extends JavaPlugin
     }
     class MazeListener implements Listener {
         @EventHandler
-        public void onBlockPlace(BlockPlaceEvent event) {
+        public void onBlockPlace(BlockPlaceEvent event)
+        {
             Location loc = event.getBlock().getLocation();
-            if (checkIfInMaze(loc)) {
-                if (event.getBlock().getY() > OriginY + 5) {
+            if(checkIfInMaze(loc))
+            {
+                if(event.getBlock().getY() > OriginY + 5)
+                {
                     event.getPlayer().sendMessage("在这个位置放置方块将被视为作弊！");
                     event.setCancelled(true);
                     event.getPlayer().setHealth(0);
-                    getServer().getWorld(world).createExplosion(loc, 5, true);
-                } else if (event.getBlock().getType() == Material.ENDER_CHEST) {
+                    getServer().getWorld(world).createExplosion(loc,5,true);
+                }
+                else if(event.getBlock().getType() == Material.ENDER_CHEST)
+                {
                     event.setCancelled(true);
                     event.getPlayer().sendMessage("不允许在迷宫设置这个方块");
                 }
             }
         }
-
         @EventHandler
-        public void onPlayerJoin(PlayerJoinEvent event) {
+        public void onPlayerJoin(PlayerJoinEvent event)
+        {
             Player p = event.getPlayer();
             String UUID = p.getUniqueId().toString();
             Boolean mazereset = OffLineMazePlayers.get(UUID);
             p.sendMessage("本服务器使用了MazePlugin，执行/StartMazeTour开始一次迷宫寻宝，你的随身物品将被寄存到系统，退出迷宫之后返还。");
             p.sendMessage("/Abort 放弃，身上所有物品将被剥夺，并被传回出生点");
             p.sendMessage("/Finish 当来到迷宫对角（相对入口）时，执行此命令将结束本局，所有人传送到出生位置并重置迷宫，最先完成的人和他的伙伴将得到身上的所有宝物，其他人身上的宝物有70%机会消失掉");
-            if (p.isOp()) {
+            if(p.isOp())
+            {
                 p.sendMessage("管理员使用/GenMaze进行迷宫的初次生成，以及手动重置");
                 p.sendMessage("/SetRebuildOnFinish <true|false> 设置是否在/Finish执行的时候重建迷宫，如果关闭，则迷宫只能通过/SetSize 或者 /GenMaze重建");
                 p.sendRawMessage("/SetSize <size> 设置迷宫的大小");
@@ -157,18 +167,24 @@ public final class MazePlugin extends JavaPlugin
                 p.sendMessage("plugins/MazePlugin/takaramono_rare.txt 定义了刷在箱子里面非常稀有的宝物");
                 p.sendMessage("plugins/MazePlugin/spawner_egg_entities.txt 如果takaramono.txt或者takramono_rare.txt里面允许刷怪蛋，则这个文件定义了刷怪蛋可能的种类");
             }
-            if (mazereset != null) {
+            if(mazereset != null)
+            {
                 //handling offline player if maze got refreshed
                 //to prevent them from stucking in the wall
-                if (mazereset) {
+                if(mazereset)
+                {
                     Location spawn = null;
-                    if (p.getBedSpawnLocation() != null) {
-                        spawn = p.getBedSpawnLocation();
-                    } else {
+                    if(p.getBedSpawnLocation() != null)
+                    {
+                       spawn = p.getBedSpawnLocation();
+                    }
+                    else
+                    {
                         spawn = getServer().getWorld(world).getSpawnLocation();
                     }
                     ItemStack[] items = p.getInventory().getContents();
-                    for (int i = 0; i < items.length; i++) {
+                    for(int i = 0;i < items.length;i++)
+                    {
                         items[i] = null;
                     }
                     ArrayList<Map<String, Object>> list = MazePlayerItemStack.get(p.getUniqueId().toString());
@@ -176,7 +192,8 @@ public final class MazePlugin extends JavaPlugin
                         for (Map<String, Object> item : list) {
                             try {
                                 getServer().getWorld(world).dropItem(spawn, ItemStack.deserialize(item));
-                            } catch (IllegalArgumentException ex) {
+                            }catch (IllegalArgumentException ex)
+                            {
                                 //  ex.printStackTrace();
                             }
                         }
@@ -189,68 +206,62 @@ public final class MazePlugin extends JavaPlugin
             }
             AntiHang_onJoin(p);
         }
-
         @EventHandler
-        public void onPlayerQuit(PlayerQuitEvent event) {
+        public void onPlayerQuit(PlayerQuitEvent event)
+        {
             Player p = event.getPlayer();
-            if (checkIfInMaze(p.getLocation())) {
-                OffLineMazePlayers.put(p.getUniqueId().toString(), false);
+            if(checkIfInMaze(p.getLocation()))
+            {
+                OffLineMazePlayers.put(p.getUniqueId().toString(),false);
             }
         }
-
         @EventHandler
-        public void onInterceptCommand(PlayerCommandPreprocessEvent event) {
-            if (event.getMessage().split(" ")[0].matches(CommmandPattern)) {
+        public void onInterceptCommand(PlayerCommandPreprocessEvent event)
+        {
+            if(event.getMessage().split(" ")[0].matches(CommmandPattern))
+            {
                 System.out.println(event.getMessage());
-                if (!event.getPlayer().isOp()) {
-                    if (checkIfInMaze(event.getPlayer().getLocation())) {
+                if(!event.getPlayer().isOp())
+                {
+                    if(checkIfInMaze(event.getPlayer().getLocation())) {
                         event.setMessage("/");
                         event.getPlayer().sendMessage("你的命令在迷宫禁止使用");
                     }
                 }
             }
         }
-
         @EventHandler
-
         public void OnGhastProjectileLaunch(ProjectileLaunchEvent event)
-
-
         {
             ProjectileSource e = event.getEntity().getShooter();
-            if (e instanceof Ghast && checkIfInMaze(((Ghast) e).getLocation()))
+            if(e instanceof Ghast && checkIfInMaze(((Ghast) e).getLocation()))
             {
                 Fireball ball = (Fireball) event.getEntity();
                 float roll = 1 + 3 * random.nextFloat();
                 ball.setYield(roll);
             }
-
         }
-
         @EventHandler
         public void OnDamage(EntityDamageEvent event)
-
         {
-            if (event.getEntity() instanceof Player)
+            if(event.getEntity() instanceof Player)
             {
                 Player p = (Player) event.getEntity();
-                if (checkIfInMaze(p.getLocation()))
-                {
-                    Map < String, Object > status = (Map<String, Object>) Anti_hanging.get(p.getUniqueId().toString());
-                    status.put("interrupted", true);
-                }
+                    if(checkIfInMaze(p.getLocation()))
+                    {
+                        Map<String,Object> status = (Map<String,Object>) Anti_hanging.get(p.getUniqueId().toString());
+                        status.put("interrupted",true);
+                    }
             }
-
         }
         @EventHandler
         public void onInventoryOpen(InventoryOpenEvent e)
         {
-             if (checkIfInMaze(e.getPlayer().getLocation()))
-            {
-                    HashMap < String, Object > status = (HashMap<String, Object>) Anti_hanging.get(e.getPlayer().getUniqueId().toString());
-            status.put("interrupted", true);
-            }
-
+                if(checkIfInMaze(e.getPlayer().getLocation()))
+                {
+                    HashMap<String,Object> status = (HashMap<String, Object>) Anti_hanging.get(e.getPlayer().getUniqueId().toString());
+                    status.put("interrupted",true);
+                }
         }
         public void AntiHang_onJoin (Player p) {
             if(Anti_hanging.get(p.getUniqueId().toString()) != null) {
@@ -264,8 +275,8 @@ public final class MazePlugin extends JavaPlugin
             status.put("interrupted",false);
             Anti_hanging.put(p.getUniqueId().toString(),status);
         }
-
     }
+
     Runnable Antihang = new Runnable() {
         @Override
         public void run() { //interval = 5s
@@ -306,6 +317,9 @@ public final class MazePlugin extends JavaPlugin
             }
         }
     };
+
+
+
 
     Runnable mSerializePlayerInfo = new Runnable() {
         @Override
@@ -352,7 +366,7 @@ public final class MazePlugin extends JavaPlugin
                     continue;
                 }
                 MazeNode node = getNodePlayerStandOn(loc.getBlockX(),loc.getBlockZ());
-                //  System.out.println("Node : " + node.X + " " + node.Y + " " + node.isWall);
+              //  System.out.println("Node : " + node.X + " " + node.Y + " " + node.isWall);
                 if(node.isWall && loc.getBlockY() >= OriginY + 5)
                 {
                     loc.setY(loc.getY() - 1);
@@ -364,20 +378,20 @@ public final class MazePlugin extends JavaPlugin
                             //check whether Node at x-1 y-1 is not wall
                             int X = node.X;
                             int Y = node.Y;
-                            //  System.out.printf("X:%d, Y:%d,isWall " + node.isWall,X,Y);
+                          //  System.out.printf("X:%d, Y:%d,isWall " + node.isWall,X,Y);
                             while(maze.maze[X][Y].isWall) {
-                                if(X == 1 && Y > 1) {
-                                    Y--;
-                                }
-                                else if(Y == 1 && X > 1)
-                                {
-                                    X--;
-                                }
-                                else
-                                {
-                                    X--;
-                                    Y--;
-                                }
+                                    if(X == 1 && Y > 1) {
+                                        Y--;
+                                    }
+                                    else if(Y == 1 && X > 1)
+                                    {
+                                        X--;
+                                    }
+                                    else
+                                    {
+                                        X--;
+                                        Y--;
+                                    }
 
                             }
                             loc.setX(OriginX + X * 3);
@@ -394,6 +408,8 @@ public final class MazePlugin extends JavaPlugin
     Runnable mMazeRunnable_Concurrent = new Runnable() {
         public void GenMobs_Concurrent(MazeNode[] nodes)
         {
+            World bukkitw = getServer().getWorld(world);
+            AsyncWorld w = AsyncWorld.wrap(bukkitw);
             int idx = 0;
             int idz = 0;
             for (MazeNode node : nodes) {
@@ -408,21 +424,19 @@ public final class MazePlugin extends JavaPlugin
                     {
                         spawnY = OriginY + 6;
                     }
+                    Location loc = new Location(w,idx,spawnY,idz);
                     int decide = 1 + random.nextInt(9);
-                    int count = 1 + random.nextInt(3);
+                    int count = random.nextInt(2);
                     for (int i = 0; i < count; i++)
                     {
-                        EntityMeta entity;
-                        HashMap<String,Object> Detail = new HashMap<String,Object>();
-                        HashMap<String,Object> Inventory = null;
-                        EntityType type;
+                        LivingEntity e;
                         switch (decide)
                         {
 
                             case chance_monster_zombiepigman:
                             {
-                                Inventory = new HashMap<String,Object>();
-                                type = EntityType.ZOMBIE;
+                                Zombie z = (Zombie) w.spawnEntity(loc,EntityType.ZOMBIE);
+                                e = z;
                                 ItemStack sword = new ItemStack(Material.GOLD_SWORD);
                                 if(random.nextFloat() < 0.3)
                                 {
@@ -431,16 +445,16 @@ public final class MazePlugin extends JavaPlugin
                                     sword.addEnchantment(Enchantment.FIRE_ASPECT,2);
                                     sword.addEnchantment(Enchantment.DURABILITY,3);
                                 }
-                                Inventory.put("ItemInHand", sword.serialize());
+                                z.getEquipment().setItemInHand(sword);
 
                                 if(random.nextFloat() < 0.5)
                                 {
 
-                                    Detail.put("isBaby",true);
+                                   z.setBaby(true);
                                 }
                                 else
                                 {
-                                    Detail.put("isBaby",false);
+                                    z.setBaby(false);
                                 }
                                 if(random.nextFloat() < 0.02) {
                                     ItemStack helmet = new ItemStack(Material.DIAMOND_HELMET);
@@ -455,66 +469,63 @@ public final class MazePlugin extends JavaPlugin
                                     legging.addEnchantment(Enchantment.DURABILITY,3);
                                     boots.addEnchantment(Enchantment.PROTECTION_ENVIRONMENTAL,4);
                                     boots.addEnchantment(Enchantment.DURABILITY,3);
-                                    Inventory.put("Helmet", helmet.serialize());
-                                    Inventory.put("Chestplate", chestplate.serialize());
-                                    Inventory.put("Legging",legging.serialize());
-                                    Inventory.put("Boots",boots.serialize());
+                                    z.getEquipment().setChestplate(chestplate);
+                                    z.getEquipment().setBoots(boots);
+                                    z.getEquipment().setHelmet(helmet);
+                                    z.getEquipment().setLeggings(legging);
                                 }
 
                             }break;
                             case chance_monster_blaze:
                             {
-                                type = EntityType.BLAZE;
+                                e = (LivingEntity) w.spawnEntity(loc,EntityType.BLAZE);
                             }break;
                             case chance_monster_wither_skeleton:
                             {
-                                type = EntityType.SKELETON;
-                                Inventory = new HashMap<String,Object>();
-                                Detail.put("SkeletonType",Skeleton.SkeletonType.WITHER);
-                                Inventory.put("ItemInHand",new ItemStack(Material.IRON_SWORD).serialize());
+                                Skeleton s = (Skeleton) w.spawnEntity(loc, EntityType.SKELETON);
+                                e = s;
+                                s.setSkeletonType(Skeleton.SkeletonType.WITHER);
+                                s.getEquipment().setItemInHand(new ItemStack(Material.IRON_SWORD));
                             }break;
                             case chance_monster_killerbunny:
                             {
-                                type = EntityType.RABBIT;
-                                Detail.put("RabbitType",Rabbit.Type.THE_KILLER_BUNNY);
-                                Detail.put("MaxHealth",20.0);
-                                Detail.put("Health",20.0);
+                                Rabbit r = (Rabbit) w.spawnEntity(loc,EntityType.RABBIT);
+                                r.setRabbitType(Rabbit.Type.THE_KILLER_BUNNY);
+                                r.setMaxHealth(20.0);
+                                r.setHealth(20.0);
+                                e = r;
                                 if(random.nextFloat() < 0.5)
                                 {
-                                    Detail.put("isBaby",true);
-                                }
-                                else
-                                {
-                                    Detail.put("isBaby",false);
+                                    r.setBaby();
                                 }
                             }break;
                             case chance_monster_powercreeper:
                             {
-                                Detail.put("Powered",true);
-                                type = EntityType.CREEPER;
+                                e = (LivingEntity) w.spawnEntity(loc,EntityType.CREEPER);
+                                ((Creeper)e).setPowered(true);
+
                             }break;
                             case chance_monster_slime:
                             {
-                                type = EntityType.SLIME;
-
+                                e = (LivingEntity) w.spawnEntity(loc,EntityType.SLIME);
                             }break;
                             case chance_monster_skeleton:
                             {
-                                type = EntityType.SKELETON;
+                                e = (LivingEntity) w.spawnEntity(loc,EntityType.SKELETON);
                             }break;
                             case chance_monster_witch:
                             {
-                                type = EntityType.WITCH;
+                                e = (LivingEntity) w.spawnEntity(loc,EntityType.WITCH);
                             }break;
                             case chance_monster_ghast:
                             {
-                                spawnY = OriginY + 12;
-                                type = EntityType.GHAST;
+                                loc.setY(OriginY + 12);
+                                e = (LivingEntity) w.spawnEntity(loc,EntityType.GHAST);
                             }break;
-                            default:type=EntityType.BAT;
+                            default:e = null;
                         }
-                        Detail.put("CustomName","Maze Monster");
-                        entitymeta.add(new EntityMeta(type,idx,spawnY,idz,Detail,Inventory));
+                        e.setCustomName("Maze Monster");
+                        e.setRemoveWhenFarAway(false);
                     }
 
                 }
@@ -524,7 +535,7 @@ public final class MazePlugin extends JavaPlugin
                     if(roll < chance_takaramono)
                     {
                         //System.out.printf("Chest X %d Y %d Z %d", idx, 193 ,idz);
-                        blockmeta.add(setChest_Concurrent(idx, OriginY + 1, idz));
+                        chestmeta.add(setChest_Concurrent(idx, OriginY + 1, idz));
 
                     }
                 }
@@ -592,42 +603,49 @@ public final class MazePlugin extends JavaPlugin
             return new BlockMeta(Material.CHEST,x,y,z,Inventory);
         }
         @Override
-        public void run() {
+        public synchronized void run() {
+            busy = true;
+            World bukkitw = getServer().getWorld(world);
+            AsyncWorld w = AsyncWorld.wrap(bukkitw);
             long begintime = System.currentTimeMillis();
-            for(Player p : getServer().getOnlinePlayers())
-            {
-                p.sendMessage("迷宫计算中");
-            }
+            getServer().getScheduler().callSyncMethod(MazePlugin.this, new Callable<Void>() {
+                @Override
+                public Void call() throws Exception {
+                    for(Player p : getServer().getOnlinePlayers())
+                    {
+                        p.sendMessage("迷宫计算中");
+                    }
+                    return null;
+                }
+            });
+
             maze = new Maze(xmax);
             maze.init();
             maze.generate(1,1);
+
             //JSON Serialize Maze and store in file
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    String json = maze.JSONSerialize().toString();
-                    BufferedWriter bw = null;
+            String json = maze.JSONSerialize().toString();
+            BufferedWriter bw = null;
+            try {
+                bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(new File(getDataFolder().getPath() + File.separator + MazeSerialize_File))));
+                bw.write(json);
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            finally {
+                if(bw != null) {
                     try {
-                        bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(new File(getDataFolder().getPath() + File.separator + MazeSerialize_File))));
-                        bw.write(json);
-                    } catch (FileNotFoundException e) {
-                        e.printStackTrace();
+                        bw.close();
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
-                    finally {
-                        if(bw != null) {
-                            try {
-                                bw.close();
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
-                        }
-                    }
                 }
-            }).start();
-            //Location locvoid = new Location(getServer().getWorld(world),0,-64,0);
-            for(Entity e : getServer().getWorld(world).getEntities()) {
+            }
+            //end of serialize
+
+            for(Entity e : w.getEntities()) {
                 if (checkIfInMaze(e.getLocation())) {
                     if (e instanceof Monster || e instanceof Rabbit || e instanceof Ghast) {
                         //System.out.println("Clearing " + e.toString() + " " + e.getLocation().getBlockX() + " " + e.getLocation().getBlockY() + " " + e.getLocation().getBlockZ());
@@ -657,13 +675,13 @@ public final class MazePlugin extends JavaPlugin
                         if (p.getBedSpawnLocation() != null) {
                             spawn = p.getBedSpawnLocation();
                         } else {
-                            spawn = getServer().getWorld(world).getSpawnLocation();
+                            spawn = w.getSpawnLocation();
                         }
                         ArrayList<Map<String, Object>> list = MazePlayerItemStack.get(p.getUniqueId().toString());
                         if (list != null) {
                             for (Map<String, Object> item : list) {
                                 try {
-                                    getServer().getWorld(world).dropItem(spawn, ItemStack.deserialize(item));
+                                    w.dropItem(spawn, ItemStack.deserialize(item));
                                 } catch (IllegalArgumentException ex) {
                                     //  ex.printStackTrace();
                                 }
@@ -679,265 +697,229 @@ public final class MazePlugin extends JavaPlugin
             {
                 OffLineMazePlayers.put(UUID,true);
             }
-
+            w.commit();
             //end of clear
-            Runnable BlockUpdateRunnable_Concurrent = new Runnable() {
+
+
+            ///Begin of block async update
+            getServer().getScheduler().callSyncMethod(MazePlugin.this, new Callable<Void>() {
                 @Override
-                public void run() {
-                    blockmeta = new ArrayList<BlockMeta>();
-                    entitymeta = new ArrayList<EntityMeta>();
-                    //if we change maze to smaller size
-                    //clear extra blocks
-                    if(lastxmax > xmax)
-                    {
-                        int vertical_limit = 6 * (lastxmax - xmax + 1);
-                        int vertical_begin = 6 * xmax;
-                        int horizontal_limit = 6 * (lastxmax + 1);
-                        int ylimit = 3 * mazeHeight_Node + OriginY + 1;
-                        for(int i = 3; i < vertical_limit;i++)
-                        {
-                            for(int j = 0; j < horizontal_limit;j++)
-                            {
-                                for(int k = OriginY;k < ylimit;k++)
-                                {
-                                    BlockMeta meta = new BlockMeta(Material.AIR,OriginX + vertical_begin + i,k,OriginZ + j , null);
-                                    BlockMeta meta1 = new BlockMeta(Material.AIR,OriginZ + j ,k,OriginX + vertical_begin + i, null);
-                                    blockmeta.add(meta);
-                                    blockmeta.add(meta1);
-                                }
-                            }
-                        }
+                public Void call() throws Exception {
+                    for (Player p : getServer().getOnlinePlayers()) {
+                        p.sendMessage("开始异步计算方块");
                     }
-                    //end of clear
-                    int posx = 0;
-                    int posy = 0;
-                    int posz = 0;
-                    int idz = 0;
-                    int light = OriginY + 5;
-                    total_gen_lines = 2 * xmax;
-                    for (MazeNode[] nodes : maze.maze) {
-                        for (MazeNode node : nodes) {
-                            if (ReConstruct_Maze_On_Finish || (!ReConstruct_Maze_On_Finish && Admin_ReConstruct_trigger)) {
-                                if (checkNodeIsEdge(node) && node.isWall) {
-                                    //Generate Basic Walls
-                                    for (int i = 0; i < mazeHeight_Node; i++) {
-                                        for (int j = 0; j < 3; j++) { //3 X Outer Layer
-                                            for (int k = 0; k < 3; k++) {   //3 X
-                                                for (int l = 0; l < 3; l++) { //3 X
-                                                    posx = OriginX + node.X * 3 + k;
-                                                    posy = OriginY + i * 3 + j;
-                                                    posz = OriginZ + node.Y * 3 + l;
-                                                    BlockMeta meta = new BlockMeta(Maze_Material_Wall,posx,posy,posz , null);
-                                                    blockmeta.add(meta);
-                                                }
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    //Generate Lamp ,Outer Walls , Roof
-                                    for (int j = 0; j < 3; j++) {
-                                        for (int k = 0; k < 3; k++) {
-                                            posx = OriginX + node.X * 3 + j;
-                                            posz = OriginZ + node.Y * 3 + k;
-                                            blockmeta.add(new BlockMeta(Maze_Material_Wall,posx, OriginY, posz,null));
-                                            //assert we generate from 0,64,0 in practice
-                                            for (int i = 0; i < 4; i++) {
-                                                if (node.isWall) {
-                                                    blockmeta.add(new BlockMeta(Maze_Material_Wall,posx,OriginY + 1 + i,posz , null));
-                                                } else {
-                                                    blockmeta.add(new BlockMeta(Material.AIR,posx,OriginY + 1 + i,posz , null));
-                                                }
-                                            }
-
-                                            if (node.isWall) {
-                                                blockmeta.add(new BlockMeta(Maze_Material_Light,posx,light,posz , null));
-                                                blockmeta.add(new BlockMeta(Maze_Material_ROOF_B,posx, OriginY + mazeHeight_Node * 3, posz , null));
-                                            } else {
-                                                blockmeta.add(new BlockMeta(Material.AIR,posx,light,posz , null));
-                                                blockmeta.add(new BlockMeta(Maze_Material_ROOF_A,posx, OriginY + mazeHeight_Node * 3, posz , null));
-                                            }
-                                        }
-                                    }
-                                    //Clear
-                                    for (int j = 0; j < 3; j++)
-                                    {
-                                        for (int k = 0; k < 3; k++)
-                                        {
-                                            for (int i = 5; i < mazeHeight_Node * 3 - 2; i++) {
-                                                posx = OriginX + node.X * 3 + j;
-                                                posz = OriginZ + node.Y * 3 + k;
-                                                blockmeta.add(new BlockMeta(Material.AIR,OriginY + 1 + i,light,posz , null));
-                                            }
-                                        }
-                                    }
-                                    //end of clear
-                                }
-                            }
-                            else
-                            {
-                                //if we do not generate
-                                //clear chests
-                                //no affect to walls
-
-                                blockmeta.add(new BlockMeta(Material.AIR,OriginX + node.X * 3 - 2,OriginY + 1,OriginZ + node.Y * 3 - 2, null));
-                            }
-
-                        }
-                        //System.out.printf("Generated line #" + idz);
-                        random = new Random();
-                        idz++;
-                    }
-                    for(MazeNode[] nodes : maze.maze)
-                    {
-                        GenMobs_Concurrent(nodes);
-                    }
-                    for(int i = 1; i < 4; i++)
-                    {
-                        for(int j = 1; j < 4; j++)
-                        {
-                            for(int k = 1; k < 4 ; k++)
-                            {
-                                blockmeta.add(new BlockMeta(Material.AIR,OriginX + (maze.maze.length - 1) * 3 - i,OriginY + j,OriginZ + (maze.maze.length - 1) * 3 - k, null));
-                            }
-                        }
-                    }
-                    double lastchance = chance_takaramono_rare;
-                    chance_takaramono_rare *= 4;
-                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 1, OriginY + 1, OriginZ + (maze.maze.length - 1) * 3 - 1));
-                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 2, OriginY + 1, OriginZ + (maze.maze.length - 1) * 3 - 2));
-                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 3, OriginY + 1, OriginZ + (maze.maze.length - 1) * 3 - 3));
-                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 1, OriginY + 1, OriginZ + (maze.maze.length - 1) * 3 - 3));
-                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 3, OriginY + 1, OriginZ + (maze.maze.length - 1) * 3 - 1));
-                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 1, OriginY + 3, OriginZ + (maze.maze.length - 1) * 3 - 1));
-                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 2, OriginY + 3, OriginZ + (maze.maze.length - 1) * 3 - 2));
-                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 3, OriginY + 3, OriginZ + (maze.maze.length - 1) * 3 - 3));
-                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 3, OriginY + 3, OriginZ + (maze.maze.length - 1) * 3 - 1));
-                    blockmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 1, OriginY + 3, OriginZ + (maze.maze.length - 1) * 3 - 3));
-                    chance_takaramono_rare = lastchance;
-                    getServer().getScheduler().callSyncMethod(MazePlugin.this, new Callable<Void>() {
-                        @Override
-                        public Void call() throws Exception {
-                            int ExitX = OriginX + maze.maze.length * 3 - 5;
-                            int Exitz = OriginZ + maze.maze.length * 3 - 5;
-                            //System.out.println("EXIT X,Z " + ExitX + " " + Exitz);
-                            World w = getServer().getWorld(world);
-                            //Convert Metadata to Blocks
-                            for (int i = 0; i < blockmeta.size(); i++)
-                            {
-                                if(i % 100000 == 0)
-                                {
-                                    float percent = ((float)i) / blockmeta.size() * 100.0f;
-                                    final String broadcast = "[" + format.format(percent) +  "%] 已经处理： " + i + " 块， 总共生成 ： " + blockmeta.size()+  " 服务器正在努力的生成迷宫啦>_<";
-                                    for(Player p : getServer().getOnlinePlayers())
-                                    {
-                                        p.sendMessage(broadcast);
-                                    }
-                                    getLogger().info(broadcast);
-                                }
-                                BlockMeta meta = blockmeta.get(i);
-                                w.getBlockAt(meta.x,meta.y,meta.z).setType(meta.type);
-                                if(meta.type == Material.CHEST)
-                                {
-                                    Chest chest = (Chest) w.getBlockAt(meta.x,meta.y,meta.z).getState();
-                                    Inventory inv = chest.getInventory();
-                                    for(int j = 0; j < 27;j++)
-                                    {
-                                        if(meta.Inventories.get(j) != null)
-                                        {
-                                            inv.setItem(j,ItemStack.deserialize(meta.Inventories.get(j)));
-                                        }
-                                    }
-                                }
-                            }
-                            //Spawn Entites by metadata
-                            for(Player p : getServer().getOnlinePlayers())
-                            {
-                                p.sendMessage("服务器正在努力刷怪");
-                            }
-
-                            for (int i = 0; i < entitymeta.size(); i++) {
-                                Entity entity = w.spawnEntity(new Location(w, entitymeta.get(i).x, entitymeta.get(i).y, entitymeta.get(i).z), entitymeta.get(i).type);
-                                if (entity instanceof Zombie) {
-                                    Zombie z = (Zombie) entity;
-                                    z.setBaby((Boolean) entitymeta.get(i).Details.get("isBaby"));
-                                    z.getEquipment().setItemInHand(ItemStack.deserialize((Map<String, Object>) entitymeta.get(i).Inventories.get("ItemInHand")));
-                                    if (entitymeta.get(i).Details.get("ChestPlate") != null) {
-                                        z.getEquipment().setItemInHand(ItemStack.deserialize((Map<String, Object>) entitymeta.get(i).Inventories.get("ChestPlate")));
-                                        z.getEquipment().setItemInHand(ItemStack.deserialize((Map<String, Object>) entitymeta.get(i).Inventories.get("Helmet")));
-                                        z.getEquipment().setItemInHand(ItemStack.deserialize((Map<String, Object>) entitymeta.get(i).Inventories.get("Leggings")));
-                                        z.getEquipment().setItemInHand(ItemStack.deserialize((Map<String, Object>) entitymeta.get(i).Inventories.get("Boots")));
-                                    }
-                                } else if (entity instanceof Creeper) {
-                                    Creeper c = (Creeper) entity;
-                                    c.setPowered((Boolean) entitymeta.get(i).Details.get("Powered"));
-                                } else if (entity instanceof Skeleton) {
-                                    Skeleton s = (Skeleton) entity;
-                                    if (entitymeta.get(i).Details.get("SkeletonType") != null) {
-                                        s.setSkeletonType((Skeleton.SkeletonType) entitymeta.get(i).Details.get("SkeletonType"));
-                                        s.getEquipment().setItemInHand(ItemStack.deserialize((Map<String, Object>) entitymeta.get(i).Inventories.get("ItemInHand")));
-                                    }
-                                } else if (entity instanceof Rabbit) {
-                                    Rabbit r = (Rabbit) entity;
-                                    r.setRabbitType(Rabbit.Type.THE_KILLER_BUNNY);
-                                    r.setMaxHealth((Double) entitymeta.get(i).Details.get("MaxHealth"));
-                                    r.setHealth((Double) entitymeta.get(i).Details.get("Health"));
-                                    if ((Boolean) entitymeta.get(i).Details.get("isBaby")) {
-                                        r.setBaby();
-                                    }
-                                }
-                            }
-
-
-                            //now lastxmax > xmax
-                            //clear a larger area
-
-                            for(Entity e : getServer().getWorld(world).getEntities()) {
-                                if(checkIfInMaze(e.getLocation())) {
-                                    if (e instanceof Item){
-                                        //System.out.println("clearing " + ((Item)e).getName());
-                                        Item item = (Item)e;
-                                        item.remove();
-                                    }
-                                }
-                            }
-                            long elapsed = (System.currentTimeMillis() - begintime) / 1000;
-                            for(Player p : getServer().getOnlinePlayers())
-                            {
-                                p.sendMessage("清理中----完成！");
-                                p.sendMessage("耗时" + format.format(elapsed) + "秒");
-                            }
-
-                            if(RepeatingTaskId == -1) {
-                                RepeatingTaskId = getServer().getScheduler().scheduleSyncRepeatingTask(MazePlugin.this, mCheckPlayerPositionRunnable, 0, 10);
-                            }
-                            if(RepeatingAntiHangId == -1) {
-                                RepeatingAntiHangId = getServer().getScheduler().scheduleAsyncRepeatingTask(MazePlugin.this, Antihang, 0, 150);
-                            }
-                            if(RepeatingSerializeTaskId == -1) {
-                                RepeatingSerializeTaskId = getServer().getScheduler().scheduleAsyncRepeatingTask(MazePlugin.this, mSerializePlayerInfo, 0, 300);
-                            }
-                            System.out.println("return");
-                            //change lastxmax to xmax
-                            lastxmax = xmax;
-                            FileConfiguration conf =  getConfig();
-                            conf.set("lastWidthX",xmax);
-                            conf.save(getDataFolder() + File.separator + "config.yml");
-                            //reset trigger
-                            if(Admin_ReConstruct_trigger)
-                            {
-                                Admin_ReConstruct_trigger = false;
-                            }
-                            blockmeta.clear();
-                            entitymeta.clear();
-                            blockmeta = null;
-                            entitymeta = null;
-                            return null;
-                        }
-                    });
+                    return null;
                 }
-            };
-            getServer().getScheduler().runTaskAsynchronously(MazePlugin.this,BlockUpdateRunnable_Concurrent);
+            });
+            //Begin of clear extra blocks
+            if (lastxmax > xmax) {
+                int vertical_limit = 6 * (lastxmax - xmax + 1);
+                int vertical_begin = 6 * xmax;
+                int horizontal_limit = 6 * (lastxmax + 1);
+                int ylimit = 3 * mazeHeight_Node + OriginY + 1;
+                for (int i = 3; i < vertical_limit; i++) {
+                    for (int j = 0; j < horizontal_limit; j++) {
+                        for (int k = OriginY; k < ylimit; k++) {
+                            w.getBlockAt(OriginX + vertical_begin + i, k, OriginZ + j).setType(Material.AIR);
+                            w.getBlockAt(OriginZ + j, k, OriginX + vertical_begin + i).setType(Material.AIR);
+                        }
+                    }
+                }
+            }
+            //end of clear
+            int posx = 0;
+            int posy = 0;
+            int posz = 0;
+            int idz = 0;
+            int light = OriginY + 5;
+            total_gen_lines = 2 * xmax;
+            for (MazeNode[] nodes : maze.maze) {
+                for (MazeNode node : nodes) {
+                    if (ReConstruct_Maze_On_Finish || (!ReConstruct_Maze_On_Finish && Admin_ReConstruct_trigger)) {
+                        if (checkNodeIsEdge(node) && node.isWall) {
+                            //Generate Basic Walls
+                            for (int i = 0; i < mazeHeight_Node; i++) {
+                                for (int j = 0; j < 3; j++) { //3 X Outer Layer
+                                    for (int k = 0; k < 3; k++) {   //3 X
+                                        for (int l = 0; l < 3; l++) { //3 X
+                                            posx = OriginX + node.X * 3 + k;
+                                            posy = OriginY + i * 3 + j;
+                                            posz = OriginZ + node.Y * 3 + l;
+                                            w.getBlockAt(posx,posy,posz).setType(Maze_Material_Wall);
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            //Generate Lamp ,Outer Walls , Roof
+                            for (int j = 0; j < 3; j++) {
+                                for (int k = 0; k < 3; k++) {
+                                    posx = OriginX + node.X * 3 + j;
+                                    posz = OriginZ + node.Y * 3 + k;
+                                    w.getBlockAt(posx,OriginY,posz).setType(Maze_Material_Wall);
+                                    //assert we generate from 0,64,0 in practice
+                                    for (int i = 0; i < 4; i++) {
+                                        if (node.isWall) {
+                                            w.getBlockAt(posx, OriginY + 1 + i, posz).setType(Maze_Material_Wall);
+                                        } else {
+                                            w.getBlockAt(posx, OriginY + 1 + i, posz).setType(Material.AIR);
+                                        }
+                                    }
 
+                                    if (node.isWall) {
+                                        w.getBlockAt(posx, light, posz).setType(Maze_Material_Light);
+                                        w.getBlockAt(posx, OriginY + mazeHeight_Node * 3, posz).setType(Maze_Material_ROOF_B);
+                                    } else {
+                                        w.getBlockAt(posx, light, posz).setType(Material.AIR);
+                                        w.getBlockAt(posx, OriginY + mazeHeight_Node * 3, posz).setType(Maze_Material_ROOF_A);
+                                    }
+                                }
+                            }
+                            //Clear
+                            for (int j = 0; j < 3; j++) {
+                                for (int k = 0; k < 3; k++) {
+                                    for (int i = 5; i < mazeHeight_Node * 3 - 2; i++) {
+                                        posx = OriginX + node.X * 3 + j;
+                                        posz = OriginZ + node.Y * 3 + k;
+                                        w.getBlockAt(OriginY + 1 + i, light, posz).setType(Material.AIR);
+                                    }
+                                }
+                            }
+                            //end of clear
+                        }
+                    } else {
+                        //if we do not generate
+                        //clear chests
+                        //no affect to walls
+                        w.getBlockAt(OriginX + node.X * 3 - 2, OriginY + 1, OriginZ + node.Y * 3 - 2).setType(Material.AIR);
+                    }
+
+                }
+                //System.out.printf("Generated line #" + idz);
+                random = new Random();
+                idz++;
+            }
+
+            for (int i = 1; i < 4; i++) {
+                for (int j = 1; j < 4; j++) {
+                    for (int k = 1; k < 4; k++) {
+                        w.getBlockAt(OriginX + (maze.maze.length - 1) * 3 - i, OriginY + j, OriginZ + (maze.maze.length - 1) * 3 - k).setType(Material.AIR);
+                    }
+                }
+            }
+
+            ///End of block async update
+
+            double lastchance = chance_takaramono_rare;
+            chance_takaramono_rare *= 4;
+            for(int i = 1;i < 4;i++)
+            {
+                for(int j = 1; j < 4; j++)
+                {
+                    for(int k = 1; k < 4;k++)
+                    {
+                        w.getBlockAt(OriginX + (maze.maze.length - 1) * 3 - i, OriginY  + j, OriginZ + (maze.maze.length - 1) * 3 - k).setType(Material.AIR);
+                    }
+                }
+            }
+            chestmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 1, OriginY + 1, OriginZ + (maze.maze.length - 1) * 3 - 1));
+            chestmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 2, OriginY + 1, OriginZ + (maze.maze.length - 1) * 3 - 2));
+            chestmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 3, OriginY + 1, OriginZ + (maze.maze.length - 1) * 3 - 3));
+            chestmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 1, OriginY + 1, OriginZ + (maze.maze.length - 1) * 3 - 3));
+            chestmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 3, OriginY + 1, OriginZ + (maze.maze.length - 1) * 3 - 1));
+            chestmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 1, OriginY + 3, OriginZ + (maze.maze.length - 1) * 3 - 1));
+            chestmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 2, OriginY + 3, OriginZ + (maze.maze.length - 1) * 3 - 2));
+            chestmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 3, OriginY + 3, OriginZ + (maze.maze.length - 1) * 3 - 3));
+            chestmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 3, OriginY + 3, OriginZ + (maze.maze.length - 1) * 3 - 1));
+            chestmeta.add(setChest_Concurrent(OriginX + (maze.maze.length - 1) * 3 - 1, OriginY + 3, OriginZ + (maze.maze.length - 1) * 3 - 3));
+            chance_takaramono_rare = lastchance;
+
+
+            //set chest at the end
+
+            if (RepeatingTaskId == -1) {
+                RepeatingTaskId = getServer().getScheduler().scheduleSyncRepeatingTask(MazePlugin.this, mCheckPlayerPositionRunnable, 0, 10);
+            }
+            if (RepeatingAntiHangId == -1) {
+                RepeatingAntiHangId = getServer().getScheduler().scheduleAsyncRepeatingTask(MazePlugin.this, Antihang, 0, 150);
+            }
+            if (RepeatingSerializeTaskId == -1) {
+                RepeatingSerializeTaskId = getServer().getScheduler().scheduleAsyncRepeatingTask(MazePlugin.this, mSerializePlayerInfo, 0, 300);
+            }
+            System.out.println("return");
+            //change lastxmax to xmax
+            lastxmax = xmax;
+            FileConfiguration conf = getConfig();
+            conf.set("lastWidthX", xmax);
+            try {
+                conf.save(getDataFolder() + File.separator + "config.yml");
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            //reset trigger
+            if (Admin_ReConstruct_trigger) {
+                Admin_ReConstruct_trigger = false;
+            }
+
+            getServer().getScheduler().callSyncMethod(MazePlugin.this, new Callable<Void>() {
+                @Override
+                public Void call() throws Exception {
+                    for (Player p : getServer().getOnlinePlayers()) {
+                        p.sendMessage("方块全部计算完成，正在提交.....");
+                    }
+                    return null;
+                }
+            });
+            w.commit();
+            for (MazeNode[] nodes : maze.maze) {
+                GenMobs_Concurrent(nodes);
+            }
+            //clear items
+            for (Entity e : w.getEntities()) {
+                if (checkIfInMaze(e.getLocation())) {
+                    if (e instanceof Item) {
+                        //System.out.println("clearing " + ((Item)e).getName());
+                        Item item = (Item) e;
+                        item.remove();
+                    }
+                }
+            }
+            //end of clear
+            w.commit();
+            long elapsed = (System.currentTimeMillis() - begintime) / 1000;
+            getServer().getScheduler().callSyncMethod(MazePlugin.this, new Callable<Void>() {
+                @Override
+                public Void call() throws Exception {
+                    for (Player p : getServer().getOnlinePlayers()) {
+                        p.sendMessage("清理中----完成！");
+                        p.sendMessage("耗时" + format.format(elapsed) + "秒");
+                    }
+                    return null;
+                }
+            });
+            getServer().getScheduler().callSyncMethod(MazePlugin.this, new Callable<Void>() {
+
+                @Override
+                public Void call() throws Exception {
+
+                    for(BlockMeta meta : chestmeta)
+                    {
+
+                        bukkitw.getBlockAt(meta.x,meta.y,meta.z).setType(meta.type);
+                        Chest chest = (Chest) bukkitw.getBlockAt(meta.x, meta.y, meta.z).getState();
+                        Inventory inv = chest.getInventory();
+                        for (int j = 0; j < 27; j++) {
+                            if (meta.Inventories.get(j) != null) {
+                                inv.setItem(j, ItemStack.deserialize(meta.Inventories.get(j)));
+                            }
+                        }
+                    }
+                    chestmeta.clear();
+                    chestmeta.trimToSize();
+                    busy=false;
+                    return null;
+                }
+            });
         }
     };
 
@@ -1066,6 +1048,11 @@ public final class MazePlugin extends JavaPlugin
                     sender.sendMessage("管理员还没有进行迷宫的初次产生");
                     return false;
                 }
+                else if(busy)
+                {
+                    sender.sendMessage("新的一轮迷宫正在产生，还不可以开始游戏");
+                    return false;
+                }
                 ArrayList<Map<String,Object>> itemStack;
                 Player p = ((Player)sender);
                 if(p.getFireTicks() > 0)
@@ -1131,18 +1118,19 @@ public final class MazePlugin extends JavaPlugin
                 }
                 for (int i = 0 ; i < p.getInventory().getArmorContents().length; i++)
                 {
+
                     if(p.getInventory().getArmorContents()[i] != null) {
                         if(p.getInventory().getArmorContents()[i].getType() != Material.AIR) {
                             itemStack.add(p.getInventory().getArmorContents()[i].serialize());
                         }
                     }
                 }
-                ItemStack iteminoffhand = p.getEquipment().getItemInHand();
-                if(iteminoffhand != null) {
-                    if(iteminoffhand.getType() != Material.AIR)
+                ItemStack iteminmainhand = p.getEquipment().getItemInHand();
+                if(iteminmainhand != null) {
+                    if(iteminmainhand.getType() != Material.AIR)
                     {
                         {
-                            itemStack.add(iteminoffhand.serialize());
+                            itemStack.add(iteminmainhand.serialize());
                         }
                     }
                 }
@@ -1181,12 +1169,13 @@ public final class MazePlugin extends JavaPlugin
                     sender.sendMessage("管理员还没有进行迷宫的初次产生");
                     return false;
                 }
+
                 int boundstart = OriginX;
                 int boundend = OriginZ + 3 * maze.maze.length;
                 Player e = (Player)sender;
                 if(e.getLocation().getX() > boundstart && e.getLocation().getY() < boundend && e.getLocation().getZ() > boundstart && e.getLocation().getZ() < boundend) {
                     HashMap<String,Object> status = (HashMap<String, Object>) Anti_hanging.get(e.getUniqueId().toString());
-                    if(System.currentTimeMillis() / 1000 - (long)status.get("JoinTime") < 300)
+                    if(System.currentTimeMillis() / 1000 - (long)status.get("JoinTime")  < 300)
                     {
                         if(!e.isOp()) {
                             sender.sendMessage("必须在迷宫停留五分钟以上才可以放弃");
@@ -1238,7 +1227,7 @@ public final class MazePlugin extends JavaPlugin
                 Location loc = ((Player) sender).getLocation();
                 if (loc.getX() >= OriginX +  xmax * 6 - 3  && loc.getX() <=OriginX + xmax * 6 && loc.getZ() >= OriginZ + xmax * 6 - 3 && loc.getZ() < OriginZ + xmax * 6 && loc.getY() > OriginY)
                 {
-                    mMazeRunnable_Concurrent.run();
+                    TaskManager.IMP.async(mMazeRunnable_Concurrent);
                 }
                 else
                 {
@@ -1250,9 +1239,14 @@ public final class MazePlugin extends JavaPlugin
         {
             if(sender.isOp() && sender instanceof Player)
             {
+                if(busy)
+                {
+                    sender.sendMessage("新的一轮迷宫正在产生，不能在这期间重复执行");
+                    return false;
+                }
                 Admin_ReConstruct_trigger = true;
                 sender.sendMessage("生成中，如果是第一次生成会卡服约10-20分钟，迷宫从无到有会消耗大量资源。如出现崩溃，清修改spigot.yml的timeout避免服务器报错。");
-                mMazeRunnable_Concurrent.run();
+                TaskManager.IMP.async(mMazeRunnable_Concurrent);
             }
         }
         else if(cmd.getName().equals("SetSize"))
@@ -1271,7 +1265,7 @@ public final class MazePlugin extends JavaPlugin
                         config.save(getDataFolder() + File.separator + "config.yml");
                         xmax = width;
                         Admin_ReConstruct_trigger = true;
-                        mMazeRunnable_Concurrent.run();
+                        TaskManager.IMP.async(mMazeRunnable_Concurrent);
                     }
                     else
                     {
@@ -1431,6 +1425,19 @@ public final class MazePlugin extends JavaPlugin
                 @Override
                 public void run() {
                     Logger.getLogger("MazePlugin").info("Async Load Maze from disk");
+                    Logger.getLogger("MazePlugin").info("Async Load PlayerData from disk");
+                    Map<String,ArrayList<Map<String,Object>>> Mazeplayeritems = PlayerItemDeserializer(new File(DataFolder + File.separator + "MazePlayerItem.json"));
+                    if(Mazeplayeritems != null)
+                    {
+                        MazePlayerItemStack = Mazeplayeritems;
+                    }
+                    Map<String,Boolean> OfflineMzPlayers = PlayerInfoDeSerializer(new File(DataFolder + File.separator + "OfflineMazePlayer.json"));
+                    if(OfflineMzPlayers != null)
+                    {
+                        OffLineMazePlayers = OfflineMzPlayers;
+                    }
+                    Logger.getLogger("MazePlugin").info("End of Async Load PlayerData from disk");
+
                     maze = Maze.JSONDeSerialize(new File(DataFolder + File.separator + MazeSerialize_File));
                     if(maze != null)
                     {
@@ -1444,20 +1451,7 @@ public final class MazePlugin extends JavaPlugin
                         Logger.getLogger("MazePlugin").info("Maze hasn't been generated");
                     }
                     Logger.getLogger("MazePlugin").info("End of Async Load Maze from disk");
-                    Logger.getLogger("MazePlugin").info("Async Load PlayerData from disk");
-                    Map<String,ArrayList<Map<String,Object>>> Mazeplayeritems = PlayerItemDeserializer(new File(DataFolder + File.separator + "MazePlayerItem.json"));
-                    if(Mazeplayeritems != null)
-                    {
-                        MazePlayerItemStack = Mazeplayeritems;
-                    }
-                    Map<String,Boolean> OfflineMzPlayers = PlayerInfoDeSerializer(new File(DataFolder + File.separator + "OfflineMazePlayer.json"));
-                    if(OfflineMzPlayers != null)
-                    {
-                        OffLineMazePlayers = OfflineMzPlayers;
-                    }
-                    Logger.getLogger("MazePlugin").info("End of Async Load PlayerData from disk");
-                    RepeatingSerializeTaskId = getServer().getScheduler().scheduleAsyncRepeatingTask(MazePlugin.this, mSerializePlayerInfo,0,300);
-                    Logger.getLogger("MazePlugin").info("Starting Background Service : save Maze Data.....Done!");
+
                     //PlayerInfoDeSerializer
                 }
             },0);

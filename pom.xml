@@ -69,6 +69,17 @@
             <artifactId>gson</artifactId>
             <version>2.7</version>
         </dependency>
-
+        <dependency>
+            <groupId>boy0001</groupId>
+            <artifactId>FastAsyncWorldEdit-API</artifactId>
+            <version>3.5.1</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>boy0001</groupId>
+            <artifactId>FastAsyncWorldEdit-bukkit</artifactId>
+            <version>3.5.1</version>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 </project>
