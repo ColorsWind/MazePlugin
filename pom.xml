@@ -43,6 +43,14 @@
             <id>bukkit</id>
             <url>http://repo.bukkit.org/content/groups/public/</url>
         </repository>
+        <repository>
+	        <id>sk89q</id>
+	        <url>http://maven.sk89q.com/repo/</url>
+        </repository>
+            <repository>
+                <id>jitpack.io</id>
+                <url>https://jitpack.io</url>
+            </repository>
     </repositories>
     <dependencies>
         <!--Spigot API-->
@@ -69,6 +77,22 @@
             <artifactId>gson</artifactId>
             <version>2.7</version>
         </dependency>
-
+       <!-- <dependency>
+            <groupId>com.sk89q.worldedit</groupId>
+            <artifactId>worldedit-bukkit</artifactId>
+            <version>6.1.2</version>
+        </dependency>-->
+       <dependency>
+            <groupId>boy0001</groupId>
+            <artifactId>FastAsyncWorldEdit-API</artifactId>
+            <version>3.5.1</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>boy0001</groupId>
+            <artifactId>FastAsyncWorldEdit-bukkit</artifactId>
+            <version>3.5.1</version>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 </project>
