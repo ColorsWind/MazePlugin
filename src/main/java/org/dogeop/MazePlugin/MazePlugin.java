@@ -1255,7 +1255,7 @@ public final class MazePlugin extends JavaPlugin
                     return false;
                 }
                 Admin_ReConstruct_trigger = true;
-                sender.sendMessage("生成中，如果是第一次生成会卡服约10-20分钟，迷宫从无到有会消耗大量资源。如出现崩溃，清修改spigot.yml的timeout避免服务器报错。");
+                sender.sendMessage("生成中，请稍候");
                 TaskManager.IMP.async(mMazeRunnable_Concurrent);
             }
         }
