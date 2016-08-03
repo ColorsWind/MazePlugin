@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Callable;
+import java.util.concurrent.RunnableFuture;
 import java.util.logging.Logger;
 
 public final class MazePlugin extends JavaPlugin
@@ -1206,16 +1207,25 @@ public final class MazePlugin extends JavaPlugin
                     } else {
                         loc = getServer().getWorld(world).getSpawnLocation();
                     }
-                    if (MazePlayerItemStack.get(e.getUniqueId().toString()) != null) {
-                        for (Map<String, Object> item : MazePlayerItemStack.get(e.getUniqueId().toString())) {
-                            try {
-                                getServer().getWorld(world).dropItem(loc, ItemStack.deserialize(item));
-                            } catch (IllegalArgumentException ex) {
+                    TaskManager.IMP.async(new Runnable() {
+                        @Override
+                        public void run() {
+                            AsyncWorld w = AsyncWorld.wrap(getServer().getWorld(world));
+                            if (MazePlayerItemStack.get(e.getUniqueId().toString()) != null) {
+                                synchronized (MazePlayerItemStack.get(e.getUniqueId().toString())) {
+                                    for (Map<String, Object> item : MazePlayerItemStack.get(e.getUniqueId().toString())) {
+                                        try {
+                                            w.dropItem(loc, ItemStack.deserialize(item));
+                                        } catch (IllegalArgumentException ex) {
 
+                                        }
+                                    }
+                                    MazePlayerItemStack.remove(e.getUniqueId().toString());
+                                }
+                                w.commit();
                             }
                         }
-                        MazePlayerItemStack.remove(e.getUniqueId().toString());
-                    }
+                    });
                     e.teleport(loc);
 
                 }
@@ -1268,9 +1278,15 @@ public final class MazePlugin extends JavaPlugin
             if(args.length == 1)
             {
                 try {
+
                     int width = Integer.valueOf(args[0]);
                     if(width > 0)
                     {
+                        if(busy)
+                        {
+                            sender.sendMessage("新的一轮迷宫正在产生，不能在这期间重复执行");
+                            return false;
+                        }
                         config.set("currentWidthX",width);
                         config.save(getDataFolder() + File.separator + "config.yml");
                         xmax = width;
