@@ -13,8 +13,8 @@ class Main {
 
     public static void main(String[] args) {
 	// write your code here
-        int width = 100;
-        Maze maze = new Maze(width);
+        int width = 48;
+        Abstract2DMaze maze = new Random_Kruskal_Maze(width);
         maze.init();
         maze.generate(1,1);
         Gson g = new Gson();
@@ -30,5 +30,6 @@ class Main {
         System.out.println(re.toString());
         Pattern p  = Pattern.compile("/(tp|home)");
         System.out.println(p.matcher("/tp").matches());
+        maze.printAsString();
     }
 }
