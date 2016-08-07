@@ -629,12 +629,12 @@ public final class MazePlugin extends JavaPlugin
                             return false;
                         }
                     }
+                    if(maze != null)
+                    {
+                        maze.handleItemsReshuffle(MazePlugin.this, e.getInventory().getContents());
+                    }
                     ItemStack[] inv = e.getInventory().getContents();
                     for (int i = 0; i < inv.length; i++) {
-                        e.getInventory().setItem(i,null);
-                    }
-                    for (int i = 0; i < e.getInventory().getContents().length; i++)
-                    {
                         e.getInventory().setItem(i,null);
                     }
                     Location loc;
@@ -785,7 +785,7 @@ public final class MazePlugin extends JavaPlugin
                 xmax = xmax / 2;
                 if(clazz.contains("3D"))
                 {
-                    xmax = xmax / 2;
+                    xmax = xmax / 4;
                     if(OriginY + (xmax * 2 + 1) * 3 >= 256)
                     {
                         xmax = (255 - OriginY - 3) / 6;
