@@ -29,9 +29,3 @@ commands:
          usage: Ops type /GenMaze <positive number> to reset size of maze
          permission:
          permission-message: You don't have <permission>
-   SetRebuildOnFinish:
-         description: Set if rebuild maze on execute of /Finish
-         usage: Ops type /SetRebuildOnFinish <true|false> to set if rebuild on execute of /Finish
-         permission:
-         permission-message: You don't have <permission>
-
