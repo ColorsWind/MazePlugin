@@ -753,7 +753,16 @@ public final class MazePlugin extends JavaPlugin
     public IMaze getMaze(int xmax) {
         Object[] arr = MazeTypes.values().toArray();
         try {
-            return ((Class<MazeFactory>)Class.forName(arr[random.nextInt(arr.length)] + "$Factory")).newInstance().GenMaze(xmax);
+            String clazz = arr[random.nextInt(arr.length)] + "$Factory";
+            if(clazz.contains("3D"))
+            {
+                xmax = xmax / 2;
+                if(OriginY + (xmax * 2 + 1) * 3 >= 256)
+                {
+                    xmax = (255 - OriginY - 3) / 6;
+                }
+            }
+            return ((Class<MazeFactory>)Class.forName(clazz)).newInstance().GenMaze(xmax);
         } catch (InstantiationException e) {
             return null;
         } catch (IllegalAccessException e) {

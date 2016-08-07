@@ -557,7 +557,12 @@ public abstract class Abstract2DMaze implements IMaze {
                     {
                         item = new ItemStack(m);
                     }
-                    item.setAmount(1 + random.nextInt(3));
+                    int amount = 1 + random.nextInt(3);
+                    if(amount > item.getMaxStackSize())
+                    {
+                        amount = 1;
+                    }
+                    item.setAmount(amount);
                 }
                 Inventory.add(invnumber,item.serialize());
             }
