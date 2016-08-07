@@ -1,37 +1,31 @@
 name: MazePlugin
 main: org.dogeop.MazePlugin.MazePlugin
-version: 1.2
+version: 1.3
 commands:
    StartMazeTour:
       description: Go To Maze.
-      usage: /StartMazeTour
+      usage: type /StartMazeTour to start
       permission:
       permission-message: You don't have <permission>
 
    Abort:
          description: Abort the Maze.
-         usage: /Abort
+         usage: type /Abort to Exit,with losing all tresure.Available 5min after entering the maze.
          permission:
          permission-message: You don't have <permission>
 
    Finish:
          description: Finish the Maze Tour.
-         usage: /Finish
+         usage: type /Finish to go back when you are in target area, which is in the opposite corner of the entrance.
          permission:
          permission-message: You don't have <permission>
    GenMaze:
          description: Generate Maze.
-         usage: /GenMaze
+         usage: Ops type /GenMaze to regenerate the maze
          permission:
          permission-message: You don't have <permission>
    SetSize:
          description: Set Size of Maze.
-         usage: /GenMaze <positive number>
+         usage: Ops type /GenMaze <positive number> to reset size of maze
          permission:
          permission-message: You don't have <permission>
-   SetRebuildOnFinish:
-         description: Set if rebuild maze on execute of /Finish
-         usage: /SetRebuildOnFinish <true|false>
-         permission:
-         permission-message: You don't have <permission>
-

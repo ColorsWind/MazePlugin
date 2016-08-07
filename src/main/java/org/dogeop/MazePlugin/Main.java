@@ -13,10 +13,8 @@ class Main {
 
     public static void main(String[] args) {
 	// write your code here
-        int width = 100;
-        Maze maze = new Maze(width);
-        maze.init();
-        maze.generate(1,1);
+        int width = 5;
+        Abstract3DMaze maze = (Abstract3DMaze) new Aldous_Broder_3DMaze.Factory().GenMaze(width);
         Gson g = new Gson();
         HashMap<String,Object> m = new HashMap<String,Object>();
         HashMap<String,Object> m2 = new HashMap<String,Object>();
@@ -30,5 +28,6 @@ class Main {
         System.out.println(re.toString());
         Pattern p  = Pattern.compile("/(tp|home)");
         System.out.println(p.matcher("/tp").matches());
+        maze.printAsString();
     }
 }
