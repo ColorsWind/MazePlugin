@@ -12,5 +12,4 @@ Maze_Material_Wall : BEDROCK
 Maze_Material_ROOF_A : OBSIDIAN
 Maze_Material_ROOF_B : GLOWSTONE
 Maze_Material_Light : PUMPKIN
-ReConstruct_Maze_On_Finish : false
 world : world
