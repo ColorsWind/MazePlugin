@@ -783,15 +783,17 @@ public final class MazePlugin extends JavaPlugin
             if(clazz.contains("3D"))
             {
                 xmax = xmax / 2;
-            }
-            maze = ((Class<MazeFactory>)Class.forName(clazz)).newInstance().GenMaze(xmax);
-            if(maze instanceof Abstract3DMaze)
-            {
-                if((xmax * 2 + 1) * 3 + OriginY >=256)
+                if(clazz.contains("3D"))
                 {
-                    return null;
+                    xmax = xmax / 2;
+                    if(OriginY + (xmax * 2 + 1) * 3 >= 256)
+                    {
+                        xmax = (255 - OriginY - 3) / 6;
+                    }
                 }
             }
+            maze = ((Class<MazeFactory>)Class.forName(clazz)).newInstance().GenMaze(xmax);
+            return maze;
 
         } catch (InstantiationException e) {
             return null;
@@ -800,7 +802,6 @@ public final class MazePlugin extends JavaPlugin
         } catch (ClassNotFoundException e) {
             return null;
         }
-        return maze;
     }
     public void LoadConfig()
     {
@@ -808,7 +809,7 @@ public final class MazePlugin extends JavaPlugin
         MazeTypes.put("Aldous_Broder", "org.dogeop.MazePlugin.Aldous_Broder_Maze");
         MazeTypes.put("Random_Kruskal", "org.dogeop.MazePlugin.Random_Kruskal_Maze");
         MazeTypes.put("Aldous_Broder_3D","org.dogeop.MazePlugin.Aldous_Broder_3DMaze");
-        MazeTypes.put("DFS_ReursiveBT_3D","org.dogeop.MazePlugin.DFS_Recursive_Backtrack_3DMaze");
+        //MazeTypes.put("DFS_ReursiveBT_3D","org.dogeop.MazePlugin.DFS_Recursive_Backtrack_3DMaze");
         ArrayList<Material> BonusItems = new ArrayList<Material>();
         ArrayList<Material> BonusItems_rare = new ArrayList<Material>();
         ArrayList<Enchantment> Enchantments = new ArrayList<Enchantment>();
