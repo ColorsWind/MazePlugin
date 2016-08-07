@@ -13,10 +13,8 @@ class Main {
 
     public static void main(String[] args) {
 	// write your code here
-        int width = 48;
-        Abstract2DMaze maze = new Random_Kruskal_Maze(width);
-        maze.init();
-        maze.generate(1,1);
+        int width = 5;
+        Abstract3DMaze maze = (Abstract3DMaze) new Aldous_Broder_3DMaze.Factory().GenMaze(width);
         Gson g = new Gson();
         HashMap<String,Object> m = new HashMap<String,Object>();
         HashMap<String,Object> m2 = new HashMap<String,Object>();

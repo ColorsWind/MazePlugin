@@ -2,12 +2,14 @@ package org.dogeop.MazePlugin;
 
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.inventory.ItemStack;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.bukkit.plugin.java.JavaPlugin;
 /**
@@ -31,7 +33,9 @@ public interface IMaze {
     public boolean checkNodeIsEdge(MazeNode node);
     public boolean checkIfInMaze(Location loc);
     public void CheckPlayerPosition(MazePlugin _plugin);
-    public  void GenBukkitWorld(JavaPlugin plugin, Map<String, Object> settings, boolean UpdateB);
+    public void GenBukkitWorld(JavaPlugin plugin, Map<String, Object> settings, boolean UpdateB);
+    public void handleItemsReshuffle(MazePlugin plugin, ItemStack[] items);
+    public boolean HandleFinish(Location loc);
     public JSONObject JSONSerialize();
     static interface MazeFactory
     {

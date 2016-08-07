@@ -27,6 +27,10 @@ class MazeNode {
         this.Y = Y;
         this.Z = Z;
     }
+
+    public MazeNode(int x, int y, int z, boolean isWall) {
+
+    }
 }
 public class DFS_Recursive_Backtrack_Maze extends Abstract2DMaze {
     static class Factory implements MazeFactory

@@ -15,11 +15,10 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
-import org.bukkit.event.player.PlayerCommandPreprocessEvent;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.*;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -57,6 +56,7 @@ public final class MazePlugin extends JavaPlugin
     Map<String, Object> Anti_hanging = new HashMap<String,Object>();
     Map<String,Boolean> OffLineMazePlayers = new HashMap<String,Boolean>();
     Map<String,ArrayList<Map<String,Object>>> MazePlayerItemStack = new HashMap<String,ArrayList<Map<String,Object>>>();
+    Map<String,Object> PlayerMazeLatestDeath = new HashMap<String,Object>();
     private static Map<String,String> MazeTypes = new HashMap<String,String>();
     int lastxmax = 0;
     int xmax = 0;
@@ -83,7 +83,7 @@ public final class MazePlugin extends JavaPlugin
                 Location loc = event.getBlock().getLocation();
                 //System.out.println(maze.checkIfInMaze(loc));
                 if (maze.checkIfInMaze(loc)) {
-                    if (event.getBlock().getY() > OriginY + 4) {
+                    if (event.getBlock().getY() > OriginY + 4 && maze instanceof Abstract2DMaze) {
                         event.getPlayer().sendMessage("在这个位置放置方块将被视为作弊！");
                         event.setCancelled(true);
                         event.getPlayer().setHealth(0);
@@ -220,8 +220,72 @@ public final class MazePlugin extends JavaPlugin
                 }
             }
         }
+        @EventHandler
+        public void onPlayerRespawn(PlayerRespawnEvent event)
+        {
+            HashMap<String,Object> PlayerDeadState = (HashMap<String, Object>) PlayerMazeLatestDeath.get(event.getPlayer().getUniqueId().toString());
+            if(PlayerDeadState != null)
+            {
+                Location loc = (Location) PlayerDeadState.get("LatestDeath");
+                ItemStack[] LatestInv = (ItemStack[]) PlayerDeadState.get("LatestInv");
+                for(Entity e : getServer().getWorld(world).getNearbyEntities(loc,8,4,8))
+                {
+                    if(e instanceof Item)
+                    {
+                        e.remove();
+                    }
+                }
+                maze.handleItemsReshuffle(MazePlugin.this,LatestInv);
+            }
+
+        }
+        @EventHandler
+        public void onPlayerDie(PlayerDeathEvent Event)
+        {
+            if(maze != null)
+            {
+                if(maze.checkIfInMaze(Event.getEntity().getLocation()))
+                {
+                    TaskManager.IMP.async(new Runnable() {
+                        @Override
+                        public void run() {
+                            ArrayList<Map<String, Object>> items = MazePlayerItemStack.get(Event.getEntity().getUniqueId().toString());
+                            AsyncWorld w = AsyncWorld.wrap(getServer().getWorld(world));
+                            Location spawn;
+                            if(Event.getEntity().getBedSpawnLocation() != null)
+                            {
+                                spawn = Event.getEntity().getBedSpawnLocation();
+                            }
+                            else
+                            {
+                                spawn = w.getSpawnLocation();
+                            }
+                            if(items != null)
+                            {
+                                for (Map<String, Object> item : items) {
+                                    try {
+                                        w.dropItem(spawn, ItemStack.deserialize(item));
+                                    } catch (IllegalArgumentException ex) {
+
+                                    }
+                                }
+                                MazePlayerItemStack.remove(Event.getEntity().getUniqueId().toString());
+                            }
+                            w.commit();
+                        }
+                    });
+                    if(maze != null)
+                    {
+                        HashMap<String,Object> PlayerDeadState = new HashMap<String,Object>();
+                        PlayerDeadState.put("LatestDeath",Event.getEntity().getLocation());
+                        PlayerDeadState.put("LatestInv", Event.getEntity().getInventory().getContents());
+                        PlayerMazeLatestDeath.put(Event.getEntity().getUniqueId().toString(), PlayerDeadState);
+                    }
+                }
+            }
+        }
         public void AntiHang_onJoin (Player p) {
-            if(Anti_hanging.get(p.getUniqueId().toString()) != null || maze == null) {
+            if(Anti_hanging.get(p.getUniqueId().toString()) != null) {
                 return;
             }
             HashMap<String, Object> status = new HashMap<String,Object>();
@@ -403,6 +467,7 @@ public final class MazePlugin extends JavaPlugin
                     sender.sendMessage("新的一轮迷宫正在产生，还不可以开始游戏");
                     return false;
                 }
+
                 ArrayList<Map<String,Object>> itemStack;
                 Player p = ((Player)sender);
                 if(p.getFireTicks() > 0)
@@ -521,10 +586,15 @@ public final class MazePlugin extends JavaPlugin
                     inv.setItem(6,bow);
                     inv.setItem(7,arrow);
                     inv.setItem(8,potato);
+                    if(maze instanceof Abstract3DMaze)
+                    {
+                        inv.setItem(9,new ItemStack(Material.IRON_PICKAXE));
+                        inv.setItem(10,new ItemStack(Material.IRON_SPADE));
+                        inv.setItem(11,new ItemStack(Material.SAND,64));
+                        inv.setItem(12,new ItemStack(Material.COBBLESTONE,64));
+                    }
                     status.put("WeaponTime",System.currentTimeMillis() / 1000);
                 }
-
-
             }
         }
         else if(cmd.getName().equals("Abort"))
@@ -597,7 +667,7 @@ public final class MazePlugin extends JavaPlugin
                     return false;
                 }
                 Location loc = ((Player) sender).getLocation();
-                if (loc.getX() >= OriginX +  xmax * 6 - 3  && loc.getX() <=OriginX + xmax * 6 && loc.getZ() >= OriginZ + xmax * 6 - 3 && loc.getZ() < OriginZ + xmax * 6 && loc.getY() > OriginY)
+                if (maze.HandleFinish(loc))
                 {
                     TaskManager.IMP.async(new Runnable() {
                         @Override
@@ -622,7 +692,7 @@ public final class MazePlugin extends JavaPlugin
                     sender.sendMessage("新的一轮迷宫正在产生，不能在这期间重复执行");
                     return false;
                 }
-                sender.sendMessage("生成中，如果是第一次生成会卡服约10-20分钟，迷宫从无到有会消耗大量资源。如出现崩溃，清修改spigot.yml的timeout避免服务器报错。");
+                sender.sendMessage("生成中");
                 TaskManager.IMP.async(new Runnable() {
                     @Override
                     public void run() {
@@ -697,6 +767,8 @@ public final class MazePlugin extends JavaPlugin
         MazeTypes.put("DFS_RecursiveBT", "org.dogeop.MazePlugin.DFS_Recursive_Backtrack_Maze");
         MazeTypes.put("Aldous_Broder", "org.dogeop.MazePlugin.Aldous_Broder_Maze");
         MazeTypes.put("Random_Kruskal", "org.dogeop.MazePlugin.Random_Kruskal_Maze");
+        MazeTypes.put("Aldous_Broder_3D","org.dogeop.MazePlugin.Aldous_Broder_3DMaze");
+        MazeTypes.put("DFS_ReursiveBT_3D","org.dogeop.MazePlugin.DFS_Recursive_Backtrack_3DMaze");
         ArrayList<Material> BonusItems = new ArrayList<Material>();
         ArrayList<Material> BonusItems_rare = new ArrayList<Material>();
         ArrayList<Enchantment> Enchantments = new ArrayList<Enchantment>();
@@ -859,17 +931,28 @@ public final class MazePlugin extends JavaPlugin
                     Logger.getLogger("MazePlugin").info("End of Async Load PlayerData from disk");
 
                     maze = (IMaze)Abstract2DMaze.JSONDeSerialize(new File(DataFolder + File.separator + MazeSerialize_File));
-                    maze.GenBukkitWorld(MazePlugin.this,settings,false);
+                    if(maze == null)
+                    {
+                        maze = (IMaze)Abstract3DMaze.JSONDeSerialize(new File(DataFolder + File.separator + MazeSerialize_File));
+                    }
                     //System.out.println(maze.getNode(30,30).isWall);
                     if(maze != null)
                     {
-                        if(RepeatingTaskId == -1) {
-                            RepeatingTaskId = getServer().getScheduler().scheduleSyncRepeatingTask(MazePlugin.this, new Runnable() {
-                                @Override
-                                public void run() {
-                                    maze.CheckPlayerPosition(MazePlugin.this);
-                                }
-                            }, 0, 10);
+                        maze.GenBukkitWorld(MazePlugin.this,settings,false);
+                        if(maze instanceof Abstract2DMaze) {
+                            if (RepeatingTaskId == -1) {
+                                RepeatingTaskId = getServer().getScheduler().scheduleSyncRepeatingTask(MazePlugin.this, new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        maze.CheckPlayerPosition(MazePlugin.this);
+                                    }
+                                }, 0, 10);
+                            }
+                        }
+                        else
+                        {
+                            getServer().getScheduler().cancelTask(RepeatingTaskId);
+                            RepeatingTaskId = -1;
                         }
                         if(RepeatingSerializeTaskId == -1) {
                             RepeatingSerializeTaskId = getServer().getScheduler().scheduleAsyncRepeatingTask(MazePlugin.this, mSerializePlayerInfo, 0, 150);
@@ -883,6 +966,7 @@ public final class MazePlugin extends JavaPlugin
                     }
                     else
                     {
+                        busy = false;
                         Logger.getLogger("MazePlugin").info("Maze hasn't been generated");
                     }
                     Logger.getLogger("MazePlugin").info("End of Async Load Maze from disk");
@@ -916,7 +1000,6 @@ public final class MazePlugin extends JavaPlugin
     public void onEnable() {
         System.out.println(getServer().getBukkitVersion());
         LoadConfig();
-
     }
     @Override
     public void onDisable()

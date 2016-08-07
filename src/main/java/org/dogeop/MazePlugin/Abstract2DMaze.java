@@ -4,6 +4,8 @@ import com.boydti.fawe.bukkit.wrapper.AsyncWorld;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockState;
 import org.bukkit.block.Chest;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.enchantments.Enchantment;
@@ -19,6 +21,7 @@ import org.json.JSONObject;
 import java.io.*;
 import java.text.NumberFormat;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Callable;
@@ -52,7 +55,7 @@ public abstract class Abstract2DMaze implements IMaze {
 
     int mazeHeight_Node = 8;
     ArrayList<MazeNode> unvisited = new ArrayList<MazeNode>();
-    ArrayList<BlockMeta> chestmeta = new ArrayList<BlockMeta>();
+    ArrayList<BlockMeta> chestmeta;
     NumberFormat format = NumberFormat.getInstance();
     final int RepeatingAntiHangId = -1;
     final int chance_monster_zombiepigman = 1;
@@ -90,7 +93,7 @@ public abstract class Abstract2DMaze implements IMaze {
         chance_takaramono_rare = (double) settings.get("Chance_Takaramono_rare");
         chance_takaramono = (double) settings.get("Chance_Chest");
         chance_monster = (double) settings.get("Chance_Monster");
-        chestmeta = new ArrayList<BlockMeta>();
+
         BonusItems = (ArrayList<Material>) settings.get("BonusItems");
         BonusItems_rare = (ArrayList<Material>) settings.get("BonusItems_rare");
         Enchantments = (ArrayList<Enchantment>) settings.get("Enchantments");
@@ -107,12 +110,14 @@ public abstract class Abstract2DMaze implements IMaze {
             return;
         }
         MazePlugin _plugin = (MazePlugin) plugin;
+        chestmeta = new ArrayList<BlockMeta>();
         String MazeType = "";
         World bukkitw = _plugin.getServer().getWorld(world);
         AsyncWorld w = AsyncWorld.wrap(bukkitw);
         long begintime = System.currentTimeMillis();
         _plugin.busy = true;
-        ///Begin of block async update
+
+
         _plugin.getServer().getScheduler().callSyncMethod(_plugin, new Callable<Void>() {
             @Override
             public Void call() throws Exception {
@@ -168,7 +173,7 @@ public abstract class Abstract2DMaze implements IMaze {
         }
         //reset trigger
 
-
+        ///Begin of block async update
         //set blocks
         GenBlocks(_plugin);
 
@@ -202,6 +207,28 @@ public abstract class Abstract2DMaze implements IMaze {
                 return null;
             }
         });
+        //JSON Serialize Maze and store in file
+        String json = JSONSerialize().toString();
+        BufferedWriter bw = null;
+        try {
+            bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(new File(_plugin.getDataFolder().getPath() + File.separator + _plugin.MazeSerialize_File))));
+            bw.write(json);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        finally {
+            if(bw != null) {
+                try {
+                    bw.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        //end of serialize
+
         _plugin.getServer().getScheduler().callSyncMethod(_plugin, new Callable<Void>() {
 
             @Override
@@ -218,12 +245,50 @@ public abstract class Abstract2DMaze implements IMaze {
                         }
                     }
                 }
-                chestmeta.clear();
-                chestmeta.trimToSize();
                 _plugin.busy = false;
                 return null;
             }
         });
+    }
+    public void handleItemsReshuffle(MazePlugin _plugin, ItemStack[] items)
+    {
+        //Synchronous item reshuffle
+        World w = _plugin.getServer().getWorld(world);
+        BlockMeta meta;
+        Block b;
+        ArrayList<Integer> emptyslotidx = new ArrayList<Integer>();
+        for(ItemStack item : items)
+        {
+            if(item != null)
+            {
+                do {
+                    emptyslotidx.clear();
+                    emptyslotidx.trimToSize();
+                    meta = chestmeta.get(random.nextInt(chestmeta.size()));
+                    b = w.getBlockAt(meta.x,meta.y,meta.z);
+                    BlockState state = b.getState();
+                    if(!(state instanceof Chest))
+                    {
+                        continue;
+                    }
+                    Chest c = (Chest) state;
+                    Inventory i = c.getBlockInventory();
+                    ItemStack[] contents = i.getContents();
+                    for(int j = 0; j < 27; j++) {
+                        if (contents[j] == null) {
+                            emptyslotidx.add(j);
+                        } else if (contents[j].getType() == Material.AIR)
+                        {
+                            emptyslotidx.add(j);
+                        }
+                    }
+                    if(emptyslotidx.size() > 0)
+                    {
+                        i.setItem(emptyslotidx.get(0),item);
+                    }
+                }while (b.getType() != Material.CHEST || emptyslotidx.size() <= 0);
+            }
+        }
     }
     public void genFinalBonus(MazePlugin _plugin)
     {
@@ -509,28 +574,6 @@ public abstract class Abstract2DMaze implements IMaze {
                 {
                     p.sendMessage("迷宫计算中");
                 }
-                //JSON Serialize Maze and store in file
-                String json = JSONSerialize().toString();
-                BufferedWriter bw = null;
-                try {
-                    bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(new File(_plugin.getDataFolder().getPath() + File.separator + _plugin.MazeSerialize_File))));
-                    bw.write(json);
-                } catch (FileNotFoundException e) {
-                    e.printStackTrace();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                finally {
-                    if(bw != null) {
-                        try {
-                            bw.close();
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }
-                //end of serialize
-
                 for(Entity e : w.getEntities()) {
                     if (checkIfInMaze(e.getLocation())) {
                         if (e instanceof Monster || e instanceof Rabbit || e instanceof Ghast) {
@@ -734,8 +777,23 @@ public abstract class Abstract2DMaze implements IMaze {
             }
             jarr.put(_jarr);
         }
+        o.put("dimension",2);
         o.put("Nodes",jarr);
+        JSONArray chests = new JSONArray();
+        for(BlockMeta meta: chestmeta)
+        {
+            JSONObject chest = new JSONObject();
+            chest.put("X",meta.x);
+            chest.put("Y",meta.y);
+            chest.put("Z",meta.z);
+            chests.put(chest);
+        }
+        o.put("ChestMeta",chests);
         return o;
+    }
+    public boolean HandleFinish(Location loc)
+    {
+        return loc.getX() >= OriginX +  (maze.length - 1) * 3  && loc.getX() <=OriginX + (maze.length) * 3 && loc.getZ() >= OriginZ + (maze.length - 1) * 3 && loc.getZ() < (maze.length) * 3 && loc.getY() > OriginY;
     }
     public ArrayList<MazeNode> getAdjunvisitedNode(int x, int y) {
         ArrayList<MazeNode> adjnodes = new ArrayList<MazeNode>();
@@ -827,6 +885,11 @@ public abstract class Abstract2DMaze implements IMaze {
             JSONObject jo = new JSONObject(s);
             int width = jo.getInt("width");
             try {
+                int dimension = jo.getInt("dimension");
+                if(dimension != 2)
+                {
+                    return null;
+                }
                 String name = jo.getString("type");
                 if(name.contains("BackTrack_Recursive"))
                 {
@@ -851,6 +914,20 @@ public abstract class Abstract2DMaze implements IMaze {
             {
                 m = new DFS_Recursive_Backtrack_Maze.Factory().GenBlankMaze(width);
             }
+            ArrayList<BlockMeta> metas = new ArrayList<BlockMeta>();
+            try{
+                JSONArray arr = jo.getJSONArray("ChestMeta");
+                for(int i = 0; i < arr.length(); i++)
+                {
+                    JSONObject o = (JSONObject) arr.get(i);
+                    metas.add(new BlockMeta(Material.CHEST,o.getInt("X"),o.getInt("Y"),o.getInt("Z"),null));
+                }
+            }
+            catch (JSONException e)
+            {
+
+            }
+            ((Abstract2DMaze)m).chestmeta = metas;
             for (int i = 0; i < width * 2 + 1; i++)
             {
                 JSONArray ja = jo.getJSONArray("Nodes").getJSONArray(i);
