@@ -616,11 +616,11 @@ public final class MazePlugin extends JavaPlugin
                         }
                     }
                     ItemStack[] inv = e.getInventory().getContents();
-                    for (int i = 0; i < inv.length; i++) {
-                        e.getInventory().setItem(i,null);
-                    }
-                    for (int i = 0; i < e.getInventory().getContents().length; i++)
+                    if(maze != null)
                     {
+                        maze.handleItemsReshuffle(MazePlugin.this, e.getInventory().getContents());
+                    }
+                    for (int i = 0; i < inv.length; i++) {
                         e.getInventory().setItem(i,null);
                     }
                     Location loc;
