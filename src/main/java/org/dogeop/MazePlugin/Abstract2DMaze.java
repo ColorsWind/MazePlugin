@@ -49,6 +49,7 @@ public abstract class Abstract2DMaze implements IMaze {
     ArrayList<Material> BonusItems_rare;
     ArrayList<Enchantment> Enchantments;
     ArrayList<EntityType> Monsters;
+    int[] vertices = new int[]{1,1,1,2,2,2,3,3,3,4,4,4,5,5,5,6,6,6,7,7,7,8,8,8};
     int try_count_takaramono;
     int gen_count_takaramono;
     int lastxmax;
@@ -763,39 +764,6 @@ public abstract class Abstract2DMaze implements IMaze {
         w.commit();
         ///End of block async update
     }
-
-    public JSONObject JSONSerialize()
-    {
-        JSONObject o = new JSONObject();
-        o.put("width",width);
-        JSONArray jarr = new JSONArray();
-        for(int i = 0; i < width * 2 + 1; i++)
-        {
-            JSONArray _jarr = new JSONArray();
-            for(int j = 0; j < width * 2 + 1; j++)
-            {
-                JSONObject _o = new JSONObject();
-                _o.put("X",maze[i][j].X);
-                _o.put("Y",maze[i][j].Y);
-                _o.put("isWall",maze[i][j].isWall);
-                _jarr.put(_o);
-            }
-            jarr.put(_jarr);
-        }
-        o.put("dimension",2);
-        o.put("Nodes",jarr);
-        JSONArray chests = new JSONArray();
-        for(BlockMeta meta: chestmeta)
-        {
-            JSONObject chest = new JSONObject();
-            chest.put("X",meta.x);
-            chest.put("Y",meta.y);
-            chest.put("Z",meta.z);
-            chests.put(chest);
-        }
-        o.put("ChestMeta",chests);
-        return o;
-    }
     public boolean HandleFinish(Location loc)
     {
         return loc.getX() >= OriginX +  (maze.length - 1) * 3  && loc.getX() <=OriginX + (maze.length) * 3 && loc.getZ() >= OriginZ + (maze.length - 1) * 3 && loc.getZ() < (maze.length) * 3 && loc.getY() > OriginY;
@@ -872,6 +840,44 @@ public abstract class Abstract2DMaze implements IMaze {
     public void setNode(int x, int y, int z, boolean isWall) {
         throw new UnsupportedOperationException();
     }
+    public JSONObject JSONSerialize()
+    {
+        JSONObject o = new JSONObject();
+        o.put("width",width);
+        JSONArray jarr = new JSONArray();
+        for(int i = 0; i < width * 2 + 1; i++)
+        {
+            JSONArray _jarr = new JSONArray();
+            for(int j = 0; j < width * 2 + 1; j++)
+            {
+                JSONObject _o = new JSONObject();
+                _o.put("X",maze[i][j].X);
+                _o.put("Y",maze[i][j].Y);
+                _o.put("isWall",maze[i][j].isWall);
+                _jarr.put(_o);
+            }
+            jarr.put(_jarr);
+        }
+        o.put("dimension",2);
+        o.put("Nodes",jarr);
+        JSONArray chests = new JSONArray();
+        for(BlockMeta meta: chestmeta)
+        {
+            JSONObject chest = new JSONObject();
+            chest.put("X",meta.x);
+            chest.put("Y",meta.y);
+            chest.put("Z",meta.z);
+            chests.put(chest);
+        }
+        JSONArray _vertices = new JSONArray();
+        for(int i = 0; i < vertices.length;i++)
+        {
+            _vertices.put(vertices[i]);
+        }
+        o.put("vertices", _vertices);
+        o.put("ChestMeta",chests);
+        return o;
+    }
     public static IMaze JSONDeSerialize(File f)
     {
         BufferedReader reader = null;
@@ -933,6 +939,17 @@ public abstract class Abstract2DMaze implements IMaze {
 
             }
             ((Abstract2DMaze)m).chestmeta = metas;
+            int[] vertices = ((Abstract2DMaze)m).vertices;
+            try {
+                JSONArray verts = jo.getJSONArray("vertices");
+                for(int i = 0; i < verts.length();i++)
+                {
+                    vertices[i] = verts.getInt(i);
+                }
+            }catch (JSONException e)
+            {
+
+            }
             for (int i = 0; i < width * 2 + 1; i++)
             {
                 JSONArray ja = jo.getJSONArray("Nodes").getJSONArray(i);
@@ -942,6 +959,7 @@ public abstract class Abstract2DMaze implements IMaze {
                     m.setNode(o.getInt("X"),o.getInt("Y"),o.getBoolean("isWall"));
                 }
             }
+
             return m;
         } catch (FileNotFoundException e) {
             e.printStackTrace();
