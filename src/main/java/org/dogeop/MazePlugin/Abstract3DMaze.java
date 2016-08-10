@@ -429,7 +429,7 @@ public abstract class Abstract3DMaze implements IMaze {
             // System.out.println(idx + " " + idz)
             if(!node.isWall) {
                 if (roll > chance_takaramono && roll < chance_monster) {
-                    System.out.println(idx + " " + idy + " " + idz + " ");
+                   // System.out.println(idx + " " + idy + " " + idz + " ");
                     int spawnY = idy;
                     Location loc = new Location(w, idx, spawnY, idz);
                     int decide = 1 + random.nextInt(8);
@@ -611,6 +611,10 @@ public abstract class Abstract3DMaze implements IMaze {
         int xlength;
         int ylength;
         int zlength;
+        if(mazebefore == null)
+        {
+            return;
+        }
         if(mazebefore instanceof Abstract2DMaze) {
             origx = ((Abstract2DMaze)mazebefore).vertices[0];
             origy = ((Abstract2DMaze)mazebefore).vertices[1];
@@ -645,7 +649,7 @@ public abstract class Abstract3DMaze implements IMaze {
                     } else {
                         Inventory inv = p.getInventory();
                         ItemStack[] stacks = inv.getContents();
-                        System.out.println(stacks.length);
+                        //System.out.println(stacks.length);
                         for (int i = 0; i < stacks.length; i++) {
                             if (stacks[i] == null) {
                                 //         System.out.println("MULL Stack");
@@ -826,7 +830,7 @@ public abstract class Abstract3DMaze implements IMaze {
     }
     public boolean HandleFinish(Location loc)
     {
-        System.out.println(loc.getBlockX() + " " + loc.getBlockY() + " " + loc.getBlockZ());
+        //System.out.println(loc.getBlockX() + " " + loc.getBlockY() + " " + loc.getBlockZ());
         return loc.getX() >= OriginX +  (maze.length - 2) * 3  && loc.getX() <=OriginX + (maze.length - 1) * 3 && loc.getZ() >= OriginZ + (maze.length - 2) * 3 && loc.getZ() <  OriginZ + (maze.length - 1) * 3 && loc.getY() >= OriginY +  (maze.length - 2) * 3  && loc.getY() <=OriginY + (maze.length - 1) * 3 ;
     }
     public JSONObject JSONSerialize()

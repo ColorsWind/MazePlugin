@@ -628,6 +628,10 @@ public abstract class Abstract2DMaze implements IMaze {
         int xlength;
         int ylength;
         int zlength;
+        if(mazebefore == null)
+        {
+            return;
+        }
         if(mazebefore instanceof Abstract2DMaze) {
             origx = ((Abstract2DMaze)mazebefore).vertices[0];
             origy = ((Abstract2DMaze)mazebefore).vertices[1];
@@ -662,7 +666,7 @@ public abstract class Abstract2DMaze implements IMaze {
                     } else {
                         Inventory inv = p.getInventory();
                         ItemStack[] stacks = inv.getContents();
-                        System.out.println(stacks.length);
+                        //System.out.println(stacks.length);
                         for (int i = 0; i < stacks.length; i++) {
                             if (stacks[i] == null) {
                                 //         System.out.println("MULL Stack");
@@ -865,7 +869,7 @@ public abstract class Abstract2DMaze implements IMaze {
 
     public boolean HandleFinish(Location loc)
     {
-        System.out.println(loc.getBlockX() + " " + loc.getBlockY() + " " + loc.getBlockZ() + " " + (OriginX +  (maze.length - 2) * 3) + " " + (OriginZ + (maze.length - 2) * 3) + " " + OriginY);
+        //System.out.println(loc.getBlockX() + " " + loc.getBlockY() + " " + loc.getBlockZ() + " " + (OriginX +  (maze.length - 2) * 3) + " " + (OriginZ + (maze.length - 2) * 3) + " " + OriginY);
         return loc.getBlockX() >= OriginX +  (maze.length - 2) * 3  && loc.getBlockX() <=OriginX + (maze.length - 1) * 3 && loc.getBlockZ() >= OriginZ + (maze.length - 2) * 3 &&loc.getBlockZ() <  OriginZ + (maze.length - 1) * 3 && loc.getY() > OriginY;
     }
     public ArrayList<MazeNode> getAdjunvisitedNode(int x, int y) {
