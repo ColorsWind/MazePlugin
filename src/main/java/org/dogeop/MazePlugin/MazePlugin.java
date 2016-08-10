@@ -24,13 +24,14 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.projectiles.ProjectileSource;
 import org.dogeop.MazePlugin.IMaze.MazeFactory;
+import org.mcstats.Metrics;
+
 import java.io.*;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.Callable;
 import java.util.logging.Logger;
 class BlockMeta implements Cloneable {
     Material type;
@@ -221,20 +222,6 @@ public final class MazePlugin extends JavaPlugin
                 }
             }
         }
-        ArrayList<Entity> getNearbyEntities(Location loc)
-        {
-            ArrayList<Entity> entities = new ArrayList<Entity>();
-            World w = getServer().getWorld(world);
-            for(Entity e : w.getEntities())
-            {
-                Location EntityLoc = e.getLocation();
-                if(EntityLoc.getBlockX() > loc.getBlockX() - 8 && EntityLoc.getBlockX() < loc.getBlockX() + 8 && EntityLoc.getBlockY() > loc.getBlockY() - 8 && EntityLoc.getBlockY() < loc.getBlockY() + 8 && EntityLoc.getBlockZ() > loc.getBlockZ() - 8 && EntityLoc.getBlockZ() < loc.getBlockZ() + 8)
-                {
-                    entities.add(e);
-                }
-            }
-            return entities;
-        }
         @EventHandler
         public void onPlayerRespawn(PlayerRespawnEvent event)
         {
@@ -242,12 +229,20 @@ public final class MazePlugin extends JavaPlugin
             if(PlayerDeadState != null)
             {
                 Location loc = (Location) PlayerDeadState.get("LatestDeath");
+                int dx = loc.getBlockX();
+                int dy = loc.getBlockY();
+                int dz = loc.getBlockZ();
                 ItemStack[] LatestInv = (ItemStack[]) PlayerDeadState.get("LatestInv");
-                for(Entity e : getNearbyEntities(loc))
+                for(Entity e : getServer().getWorld(world).getEntitiesByClass(Item.class))
                 {
-                    if(e instanceof Item)
-                    {
-                        e.remove();
+                    if(e != null){
+                        Location itemloc = e.getLocation();
+                        int ex = itemloc.getBlockX();
+                        int ey = itemloc.getBlockY();
+                        int ez = itemloc.getBlockZ();
+                        if(ex >= dx - 6 && ex <=dx + 6 && ey >= ey - 6 && ey <= ey + 6 && ez >= ez - 4 && ez <= ez + 4) {
+                            e.remove();
+                        }
                     }
                 }
                 maze.handleItemsReshuffle(MazePlugin.this,LatestInv);
@@ -629,11 +624,11 @@ public final class MazePlugin extends JavaPlugin
                             return false;
                         }
                     }
+                    ItemStack[] inv = e.getInventory().getContents();
                     if(maze != null)
                     {
                         maze.handleItemsReshuffle(MazePlugin.this, e.getInventory().getContents());
                     }
-                    ItemStack[] inv = e.getInventory().getContents();
                     for (int i = 0; i < inv.length; i++) {
                         e.getInventory().setItem(i,null);
                     }
@@ -683,13 +678,10 @@ public final class MazePlugin extends JavaPlugin
                 Location loc = ((Player) sender).getLocation();
                 if (maze.HandleFinish(loc))
                 {
-                    TaskManager.IMP.async(new Runnable() {
-                        @Override
-                        public void run() {
+
                             maze = getMaze(xmax);
                             maze.GenBukkitWorld(MazePlugin.this, settings,true);
-                        }
-                    });
+
                 }
                 else
                 {
@@ -707,25 +699,11 @@ public final class MazePlugin extends JavaPlugin
                     return false;
                 }
                 sender.sendMessage("生成中");
-                TaskManager.IMP.async(new Runnable() {
-                    @Override
-                    public void run() {
+
                         maze = getMaze(xmax);
                         //System.out.println(maze.getClass());
-                        if(maze == null)
-                        {
-                            getServer().getScheduler().callSyncMethod(MazePlugin.this,new Callable<Void>() {
-                                @Override
-                                public Void call() throws Exception {
-                                    sender.sendMessage("请尝试把迷宫改的小些");
-                                    return null;
-                                }
-                            });
-                            return;
-                        }
                         maze.GenBukkitWorld(MazePlugin.this, settings,true);
-                    }
-                });
+
             }
         }
         else if(cmd.getName().equals("SetSize"))
@@ -749,13 +727,8 @@ public final class MazePlugin extends JavaPlugin
                         config.set("currentWidthX",width);
                         config.save(getDataFolder() + File.separator + "config.yml");
                         xmax = width;
-                        TaskManager.IMP.async(new Runnable() {
-                            @Override
-                            public void run() {
-                                maze = getMaze(xmax);
-                                maze.GenBukkitWorld(MazePlugin.this, settings,true);
-                            }
-                        });
+                        maze = getMaze(xmax);
+                        maze.GenBukkitWorld(MazePlugin.this, settings,true);
                     }
                     else
                     {
@@ -777,24 +750,17 @@ public final class MazePlugin extends JavaPlugin
     }
     public IMaze getMaze(int xmax) {
         Object[] arr = MazeTypes.values().toArray();
-        IMaze maze;
         try {
             String clazz = arr[random.nextInt(arr.length)] + "$Factory";
             if(clazz.contains("3D"))
             {
-                xmax = xmax / 2;
-                if(clazz.contains("3D"))
+                xmax = xmax / 4;
+                if(OriginY + (xmax * 2 + 1) * 3 >= 256)
                 {
-                    xmax = xmax / 4;
-                    if(OriginY + (xmax * 2 + 1) * 3 >= 256)
-                    {
-                        xmax = (255 - OriginY - 3) / 6;
-                    }
+                    xmax = (255 - OriginY - 3) / 6;
                 }
             }
-            maze = ((Class<MazeFactory>)Class.forName(clazz)).newInstance().GenMaze(xmax);
-            return maze;
-
+            return ((Class<MazeFactory>)Class.forName(clazz)).newInstance().GenMaze(xmax);
         } catch (InstantiationException e) {
             return null;
         } catch (IllegalAccessException e) {
@@ -1039,7 +1005,14 @@ public final class MazePlugin extends JavaPlugin
     }
     @Override
     public void onEnable() {
+        try {
+            Metrics metrics = new Metrics(this);
+            metrics.start();
+        } catch (IOException e) {
+            // Failed to submit the stats :-(
+        }
         System.out.println(getServer().getBukkitVersion());
+
         LoadConfig();
     }
     @Override

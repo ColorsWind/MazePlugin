@@ -1,7 +1,7 @@
 lastWidthX : 48
 currentWidthX : 48
 OriginX : 100000
-OriginY : 192
+OriginY : 64
 OriginZ : 100000
 Chance_Takaramono_rare : 0.02
 Chance_Chest : 0.02
@@ -11,5 +11,5 @@ Takaramono_generation_count : 8
 Maze_Material_Wall : BEDROCK
 Maze_Material_ROOF_A : OBSIDIAN
 Maze_Material_ROOF_B : GLOWSTONE
-Maze_Material_Light : PUMPKIN
+Maze_Material_Light : JACK_O_LANTERN
 world : world
