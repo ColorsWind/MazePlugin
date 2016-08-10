@@ -594,7 +594,7 @@ public abstract class Abstract3DMaze implements IMaze {
                     int amount = 1 + random.nextInt(3);
                     if(amount > item.getMaxStackSize())
                     {
-                        amount = 1; 
+                        amount = 1;
                     }
                     item.setAmount(amount);
                 }
