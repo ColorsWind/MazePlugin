@@ -53,7 +53,6 @@ public class DFS_Recursive_Backtrack_Maze extends Abstract2DMaze {
     private DFS_Recursive_Backtrack_Maze(int width) {
         maze = new MazeNode[2 * width + 1][2 * width + 1];
         this.width = width;
-        this.mazeblockwidth = 2 * width + 1;
     }
     public int checkdir(int x, int y) {
         if (maze[x][y].isWall) {

@@ -24,6 +24,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.projectiles.ProjectileSource;
 import org.dogeop.MazePlugin.IMaze.MazeFactory;
+import org.mcstats.Metrics;
+
 import java.io.*;
 import java.text.NumberFormat;
 import java.util.ArrayList;
@@ -669,13 +671,10 @@ public final class MazePlugin extends JavaPlugin
                 Location loc = ((Player) sender).getLocation();
                 if (maze.HandleFinish(loc))
                 {
-                    TaskManager.IMP.async(new Runnable() {
-                        @Override
-                        public void run() {
+
                             maze = getMaze(xmax);
                             maze.GenBukkitWorld(MazePlugin.this, settings,true);
-                        }
-                    });
+
                 }
                 else
                 {
@@ -693,14 +692,11 @@ public final class MazePlugin extends JavaPlugin
                     return false;
                 }
                 sender.sendMessage("生成中");
-                TaskManager.IMP.async(new Runnable() {
-                    @Override
-                    public void run() {
+
                         maze = getMaze(xmax);
                         //System.out.println(maze.getClass());
                         maze.GenBukkitWorld(MazePlugin.this, settings,true);
-                    }
-                });
+
             }
         }
         else if(cmd.getName().equals("SetSize"))
@@ -724,13 +720,8 @@ public final class MazePlugin extends JavaPlugin
                         config.set("currentWidthX",width);
                         config.save(getDataFolder() + File.separator + "config.yml");
                         xmax = width;
-                        TaskManager.IMP.async(new Runnable() {
-                            @Override
-                            public void run() {
-                                maze = getMaze(xmax);
-                                maze.GenBukkitWorld(MazePlugin.this, settings,true);
-                            }
-                        });
+                        maze = getMaze(xmax);
+                        maze.GenBukkitWorld(MazePlugin.this, settings,true);
                     }
                     else
                     {
@@ -1007,7 +998,14 @@ public final class MazePlugin extends JavaPlugin
     }
     @Override
     public void onEnable() {
+        try {
+            Metrics metrics = new Metrics(this);
+            metrics.start();
+        } catch (IOException e) {
+            // Failed to submit the stats :-(
+        }
         System.out.println(getServer().getBukkitVersion());
+
         LoadConfig();
     }
     @Override
